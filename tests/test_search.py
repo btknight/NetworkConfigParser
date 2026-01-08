@@ -11,7 +11,7 @@ class TestSearch(TestCase):
         dl_list = parse_from_file('frapr5.core.inteliquent.com')
         intf_list = [j for i in dl_list for j in i.family() if i.startswith('interface')]
         gc_list = [j for i in intf_list for j in i.family(include_self=False, include_children=False,
-                                                       include_all_descendants=False) if 'Google Cloud' in i]
+                                                          include_all_descendants=False) if 'Google Cloud' in i]
         assert len(gc_list) == 3
         bgp_list = [j for i in dl_list for j in i.family() if i.startswith('router bgp')]
         mg_list = [j for i in bgp_list for j in i.family() if ' vrf MAILGUN' in i]
@@ -21,7 +21,7 @@ class TestSearch(TestCase):
 
     def test_chites(self):
         dl_list = parse_from_file('chites01.core.inteliquent.com')
-        sg_list = [i for i in dl_list if i.depth == 1]
+        sg_list = [i for i in dl_list if i.gen == 1]
         #pprint(sg_list)
 
     def test_atlbr1(self):

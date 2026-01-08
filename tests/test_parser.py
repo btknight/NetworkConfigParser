@@ -21,7 +21,7 @@ class Test_ParseSpacedConfig(TestCase):
         assert lo.line == line.rstrip()
         assert str(lo) == line.rstrip()
         assert lo.line_num == 1
-        assert lo.depth == 1
+        assert lo.gen == 1
         assert lo.ancestors == []
         assert lo.children == []
         assert lo.all_descendants == []
@@ -60,7 +60,7 @@ class Test_ParseSpacedConfig(TestCase):
         lo = p[0]
         assert lo.line == lines[0].rstrip()
         assert lo.line_num == 1
-        assert lo.depth == 1
+        assert lo.gen == 1
         assert lo.ancestors == []
         assert lo.children == p[1:17]
         assert lo.all_descendants == p[1:17]
@@ -80,7 +80,7 @@ class Test_ParseSpacedConfig(TestCase):
         lo = p[0]
         assert lo.line == lines[0].rstrip()
         assert lo.line_num == 1
-        assert lo.depth == 1
+        assert lo.gen == 1
         assert lo.ancestors == []
         assert lo.children == p[1:5]
         assert lo.all_descendants == p[1:5]
@@ -107,7 +107,7 @@ interface TenGigE0/1/0/2
         lines = [i + '\n' for i in config.split('\n')]
         p = parse_autodetect(lines)
         assert len(p) == 16
-        assert len([i for i in p if i.depth == 1]) == 3
+        assert len([i for i in p if i.gen == 1]) == 3
         assert p[0].children == [p[1], p[3]]
         assert p[0].all_descendants == p[1:10]
         assert p[10].children == p[11:15]
@@ -141,7 +141,7 @@ end-policy"""
         lines = [i + '\n' for i in config.split('\n')]
         p = parse_autodetect(lines)
         assert len(p) == 16
-        assert len([i for i in p if i.depth == 1]) == 2
+        assert len([i for i in p if i.gen == 1]) == 2
         assert p[0].children == p[1:9]
         assert p[0].all_descendants == p[1:9]
         assert p[9].children == p[10:16]
@@ -172,8 +172,8 @@ route-policy DEFAULT-ONLY
         finally:
             logging.getLogger().removeHandler(stream_handler)
         assert len(p) == 14
-        assert len([i for i in p if i.depth == 1]) == 2
-        assert len([i for i in p if i.depth == 2]) == 12
+        assert len([i for i in p if i.gen == 1]) == 2
+        assert len([i for i in p if i.gen == 2]) == 12
         assert 'no end-set or end-policy encountered at line 9 within section route-policy FOOBR-IN' in log_output.getvalue()
         assert p[0].children == p[1:8]
         assert p[0].all_descendants == p[1:8]
