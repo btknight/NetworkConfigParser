@@ -1,4 +1,3 @@
-from readers import read_config_from_file
 from parser import *
 from pprint import pprint
 import io
@@ -16,7 +15,7 @@ class Test_ParseSpacedConfig(TestCase):
 
     def test_plain_line(self):
         line = 'router bgp 65535\n'
-        p = parse_leading_spaces([line])
+        p = parse_autodetect([line])
         assert len(p) == 1
         lo = p[0]
         assert lo.line == line.rstrip()
@@ -56,7 +55,7 @@ class Test_ParseSpacedConfig(TestCase):
 +----------------------------------------------------------------------------+
 ^C"""
         lines = [i + '\n' for i in config.split('\n')]
-        p = parse_leading_spaces(lines)
+        p = parse_autodetect(lines)
         assert len(p) == 17
         lo = p[0]
         assert lo.line == lines[0].rstrip()
@@ -76,7 +75,7 @@ class Test_ParseSpacedConfig(TestCase):
  ipv4 access-group TenGigACL ingress
 !"""
         lines = [i + '\n' for i in config.split('\n')]
-        p = parse_leading_spaces(lines)
+        p = parse_autodetect(lines)
         assert len(p) == 6
         lo = p[0]
         assert lo.line == lines[0].rstrip()
@@ -106,7 +105,7 @@ interface TenGigE0/1/0/2
  ipv4 access-group TenGigACL ingress
 !"""
         lines = [i + '\n' for i in config.split('\n')]
-        p = parse_leading_spaces(lines)
+        p = parse_autodetect(lines)
         assert len(p) == 16
         assert len([i for i in p if i.depth == 1]) == 3
         assert p[0].children == [p[1], p[3]]
@@ -119,11 +118,8 @@ interface TenGigE0/1/0/2
         assert p[3].family(include_self=False) == [p[0]] + p[4:10]
         assert p[3].family(include_children=False, include_all_descendants=False) == [p[0], p[3]]
         assert p[3].family(include_all_descendants=False) == [p[0]] + p[3:5]
-        assert p[3].family(include_siblings=True) == p[0:10]
-        assert p[4].family(include_cousins_maxdepth=2) == p[0:10]
-        assert p[4].family(include_cousins_maxdepth=1) == [p[0]] + p[3:10]
-        with self.assertRaises(ValueError):
-            p[4].family(include_cousins_maxdepth=-1)
+        assert p[4].ancestors[-2].family() == p[0:10]
+        assert p[4].ancestors[-1].family() == [p[0]] + p[3:10]
 
     def test_route_policy(self):
         config = """route-policy FOOBR-IN
@@ -143,7 +139,7 @@ route-policy DEFAULT-ONLY
   endif
 end-policy"""
         lines = [i + '\n' for i in config.split('\n')]
-        p = parse_leading_spaces(lines)
+        p = parse_autodetect(lines)
         assert len(p) == 16
         assert len([i for i in p if i.depth == 1]) == 2
         assert p[0].children == p[1:9]
@@ -172,13 +168,13 @@ route-policy DEFAULT-ONLY
   endif"""
         lines = [i + '\n' for i in config.split('\n')]
         try:
-            p = parse_leading_spaces(lines)
+            p = parse_autodetect(lines)
         finally:
             logging.getLogger().removeHandler(stream_handler)
         assert len(p) == 14
         assert len([i for i in p if i.depth == 1]) == 2
         assert len([i for i in p if i.depth == 2]) == 12
-        assert 'no end-set or end-policy encountered at line 9: route-policy FOOBR-IN' in log_output.getvalue()
+        assert 'no end-set or end-policy encountered at line 9 within section route-policy FOOBR-IN' in log_output.getvalue()
         assert p[0].children == p[1:8]
         assert p[0].all_descendants == p[1:8]
         assert p[0].family() == p[0:8]

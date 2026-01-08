@@ -1,5 +1,6 @@
-"""Parses the sections of a config file."""
+"""Parses the sections of a config document."""
 from DocumentLine import *
+from collections import namedtuple
 import logging
 import re
 from typing import List
@@ -22,10 +23,10 @@ def parse_autodetect(config: List[str]) -> List[DocumentLine]:
     braced_line_end_chars = {
         '{': 0,
         '}': 0,
-        ';': 0,
+        # ';': 0,  # This code once checked for semicolons but was removed to handle UBNT configs
     }
     lc = 0
-    for line in config:
+    for line in config[:maximum_lines]:
         #
         # Skip comments
         if line.startswith('#') or line.startswith('!'):
@@ -39,13 +40,9 @@ def parse_autodetect(config: List[str]) -> List[DocumentLine]:
             if line.rstrip().endswith(k):
                 braced_line_end_chars[k] += 1
         #
-        # If we have hit the minimum match for the line ending chars, process as a braced config
+        # If we have hit the minimum match for all line ending chars, process as a braced config
         if all([i > minimum_match for i in braced_line_end_chars.values()]):
             return parse_braced(config)
-        #
-        # Break out of the loop if we have hit the maximum number of lines
-        if lc == maximum_lines:
-            break
     return parse_leading_spaces(config)
 
 
@@ -67,87 +64,114 @@ def parse_braced(config: List[str]) -> List[DocumentLine]:
         #
         # If line ends with an opening brace, add this item to the stack
         if line.endswith('{') and not line.lstrip().startswith('#'):
+            logging.debug(f'parse_braced: section "{current_dn.lstrip()}" opening')
             dn_stack.append(current_dn)
+            logging.debug(f'parse_braced: dn_stack: {dn_stack}')
         #
         # If line ends with a closing brace, pop the current item off the stack
         if line.endswith('}') and not line.lstrip().startswith('#'):
+            logging.debug(f'parse_braced: section "{dn_stack[-1].lstrip()}" closing')
             dn_stack.pop()
+            logging.debug(f'parse_braced: dn_stack: {dn_stack}')
     return dn_list
 
 
 def parse_leading_spaces(config: List[str]) -> List[DocumentLine]:
     """Parse a document structured with leading spaces."""
-    space_multiplier = None
-    current_space_level = 0
     dn_list = []
-    dn_stack: List[DocumentLine] = []
+    #
+    # StackMember tuple is used to store the parent object on the ancestor stack, along with the expected number of
+    # spaces its children lines will have.
+    StackMember = namedtuple('StackMember', ['child_space_level', 'ancestor'])
+    dn_stack: List[StackMember] = []
     current_dn = None
     banner_delimiter = None
-    ignore_space_levels = False
+    in_policy_set_section = False
+    def current_space_level():
+        if len(dn_stack) == 0:
+            return 0
+        return dn_stack[-1].child_space_level
+    def ignore_spaces():
+        """Return True if exceptional circumstances are in effect that should cause the parser not to apply familial
+        logic based on leading spaces."""
+        return banner_delimiter is not None or in_policy_set_section
     for lc, line in zip(range(1, len(config) + 1), config):
         #
         # Remove whitespace and LF at the end of the line
         line = line.rstrip()
         #
-        # Count the number of spaces in the first line with a non-zero number of spaces. This is our space multiplier.
-        if space_multiplier is None and line.startswith(" "):
-            space_multiplier = num_leading_spaces(line)
-            logging.debug(f'parse_lines: space_multiplier = {space_multiplier}')
-        #
         # If the current space level is less than the number of spaces on this new line, this is a new section
         # and the last line should be placed on the dn_stack.
-        if space_multiplier is not None:
-            new_space_level = num_leading_spaces(line) // space_multiplier
-        else:
-            new_space_level = 0
+        new_space_level = num_leading_spaces(line)
         #
-        # If ignore_space_levels is set, force new_space_level to 1 as long as there is a space at the beginning of the
-        # line, or the line starts with 'end-'. This forces any length space to be associated as a child of the top-
-        # level member.
-        if ignore_space_levels and (line.startswith(' ') or line.startswith('end-')):
-            new_space_level = 1
-        elif ignore_space_levels:
-            logging.warning(f'parse_lines: no end-set or end-policy encountered at line {lc}: {str(dn_stack[-1])}')
-            ignore_space_levels = False
+        # If in_policy_set_section is set, and the line starts with something other than an end-policy or end-set
+        # marker, log a warning and pop the last member off the stack.
+        if in_policy_set_section and not (line.startswith(' ') or line.startswith('end-')):
+            logging.warning(f'parse_leading_spaces: no end-set or end-policy encountered at line {lc} within section '
+                            + str(dn_stack[-1].ancestor))
+            dn_stack.pop()
+            in_policy_set_section = False
         #
         # If the current space level is less than the new space level, add the previous line to the stack.
-        if current_space_level < new_space_level:
-            if current_space_level + 1 != new_space_level:
-                logging.warning(f'parse_lines: new space level is greater than one level deeper than expected on line {lc}')
-            dn_stack.append(current_dn)
-            logging.debug(f'parse_lines: space_level {current_space_level} -> {new_space_level}: incr')
-            logging.debug(f'parse_lines: dn_stack: [{dn_stack}]')
+        if not ignore_spaces() and current_space_level() < new_space_level and current_dn is not None:
+            logging.debug(f'parse_leading_spaces: space_level {current_space_level()} -> {new_space_level}: incr')
+            dn_stack.append(StackMember(new_space_level, current_dn))
+            logging.debug(f'parse_leading_spaces: dn_stack: {dn_stack}')
         #
         # If the current space level is greater than the number of spaces on this new line, this is an end to the
         # current section and the sections should be popped to match.
-        if current_space_level > new_space_level:
-            dn_stack = dn_stack[0:new_space_level]
-            logging.debug(f'parse_lines: space_level {current_space_level} -> {new_space_level}: decr')
-            logging.debug(f'parse_lines: dn_stack: [{dn_stack}]')
-            ignore_space_levels = False
-        #
-        # Set current space level
-        current_space_level = new_space_level
+        if not ignore_spaces() and current_space_level() > new_space_level:
+            logging.debug(f'parse_leading_spaces: space_level {current_space_level} -> {new_space_level}: decr')
+            while len(dn_stack) > 0 and new_space_level < dn_stack[-1].child_space_level:
+                dn_stack.pop()
+            logging.debug(f'parse_leading_spaces: dn_stack: {dn_stack}')
         #
         # Create a new DocumentLine object and add to the children list of the parent.
         current_dn = DocumentLine(lc, line)
         if len(dn_stack) > 0:
-            current_dn.parent = dn_stack[-1]
-            dn_stack[-1].children.append(current_dn)
+            current_dn.parent = dn_stack[-1].ancestor
+            dn_stack[-1].ancestor.children.append(current_dn)
         dn_list.append(current_dn)
         #
         # Deal with banners.
         if line.startswith('banner '):
-            banner_delimiter = re.match(r'^banner \S+ (\S+)', line).group(1)
-            dn_stack.append(current_dn)
+            if m := re.match(r'^banner \S+ (\S+)$', line): # Cisco style
+                banner_delimiter = m.group(1)
+            elif re.match(r'^banner \S+$', line.strip()):  # Arista style
+                banner_delimiter = 'EOF'
+            dn_stack.append(StackMember(None, current_dn))
+            logging.debug(f'parse_leading_spaces: found banner start, delimiter="{banner_delimiter}"')
+            logging.debug(f'parse_leading_spaces: dn_stack: [{dn_stack}]')
             continue
         if banner_delimiter is not None and banner_delimiter in line:
             banner_delimiter = None
             dn_stack.pop()
+            logging.debug(f'parse_leading_spaces: found banner end, delimiter="{banner_delimiter}"')
+            logging.debug(f'parse_leading_spaces: dn_stack: [{dn_stack}]')
         #
         # Deal with route policies and sets.
         if line.startswith('route-policy ') or re.match(r'\w+-set ', line):
-            ignore_space_levels = True
-        if ignore_space_levels and line.startswith('end-'):
-            ignore_space_levels = False
+            dn_stack.append(StackMember(None, current_dn))
+            in_policy_set_section = True
+            logging.debug(f'parse_leading_spaces: found IOSXR {line.split()[0]} start')
+            logging.debug(f'parse_leading_spaces: dn_stack: [{dn_stack}]')
+        if in_policy_set_section and line.startswith('end-'):
+            logging.debug(f'parse_leading_spaces: found IOSXR {dn_stack[-1].ancestor.split()[0]} end')
+            dn_stack.pop()
+            in_policy_set_section = False
+            logging.debug(f'parse_leading_spaces: dn_stack: [{dn_stack}]')
     return dn_list
+
+def parse_from_file(document_filename: str) -> List[DocumentLine]:
+    """Parses a document stored in a file."""
+    with open(document_filename) as fh:
+        config = fh.readlines()
+    return parse_text_list(config)
+
+def parse_text_list(doc_lines: List[str]) -> List[DocumentLine]:
+    """Parses a document stored as a list of text lines."""
+    return parse_autodetect(doc_lines)
+
+def parse_text_string(document: str) -> List[DocumentLine]:
+    """Parses a document stored as a single string."""
+    return parse_text_list(document.split('\n'))
