@@ -8,7 +8,7 @@ def read_config_from_file(filename: str) -> List[DocumentLine]:
     return read_config_from_str_list(config)
 
 def read_config_from_str_list(config: List[str]) -> List[DocumentLine]:
-    return parse_lines(config)
+    return parse_autodetect(config)
 
 def read_config_from_str(config: str) -> List[DocumentLine]:
     return read_config_from_str_list(config.split('\n'))
