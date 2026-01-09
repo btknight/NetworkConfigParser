@@ -115,8 +115,7 @@ interface TenGigE0/1/0/2
         assert str(p[15]) == '!'
         assert p[3].family() == [p[0]] + p[3:10]
         assert p[3].family(include_ancestors=False) == p[3:10]
-        assert p[3].family(include_self=False) == [p[0]] + p[4:10]
-        assert p[3].family(include_children=False, include_all_descendants=False) == [p[0], p[3]]
+        assert p[3].family(include_children=False) == [p[0], p[3]]
         assert p[3].family(include_all_descendants=False) == [p[0]] + p[3:5]
         assert p[4].ancestors[-2].family() == p[0:10]
         assert p[4].ancestors[-1].family() == [p[0]] + p[3:10]

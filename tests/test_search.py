@@ -10,8 +10,7 @@ class TestSearch(TestCase):
     def test_str_methods(self):
         dl_list = parse_from_file('frapr5.core.inteliquent.com')
         intf_list = [j for i in dl_list for j in i.family() if i.startswith('interface')]
-        gc_list = [j for i in intf_list for j in i.family(include_self=False, include_children=False,
-                                                          include_all_descendants=False) if 'Google Cloud' in i]
+        gc_list = [i.ancestors[0] for i in intf_list if i.gen > 1 and 'Google Cloud' in i]
         assert len(gc_list) == 3
         bgp_list = [j for i in dl_list for j in i.family() if i.startswith('router bgp')]
         mg_list = [j for i in bgp_list for j in i.family() if ' vrf MAILGUN' in i]

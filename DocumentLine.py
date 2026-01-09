@@ -53,7 +53,7 @@ class DocumentLine(object):
         """
         if self.parent is None:
             return 1
-        return self.parent.depth + 1
+        return self.parent.gen + 1
 
     @property
     def ancestors(self) -> List[object]:
@@ -82,7 +82,6 @@ class DocumentLine(object):
 
     def family(self,
                include_ancestors: bool = True,
-               include_self: bool = True,
                include_children: bool = True,
                include_all_descendants: bool = True) -> List[object]:
         """Provides a list of family objects, optionally including ancestors, itself, children, and all descendants.
@@ -90,8 +89,6 @@ class DocumentLine(object):
         Args:
             include_ancestors:
                 A bool indicating whether to include ancestors. Default is True.
-            include_self:
-                A bool indicating whether to include this object itself. Default is True.
             include_children:
                 A bool indicating whether to include immediate children of this object. Default is True.
             include_all_descendants:
@@ -105,11 +102,10 @@ class DocumentLine(object):
         family = []
         if include_ancestors:
             family.extend(self.ancestors)
-        if include_self:
-            family.append(self)
+        family.append(self)
         if include_children and not include_all_descendants:
             family.extend(self.children)
-        elif include_all_descendants:
+        elif include_children and include_all_descendants:
             family.extend(self.all_descendants)  # All? NO! ALL!
         return family
 
