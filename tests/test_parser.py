@@ -5,7 +5,7 @@ import ipaddress as ipa
 import logging
 from unittest import TestCase
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 class Test_ParseSpacedConfig(TestCase):
     # TODO add tests oriented around specific methods and functions, not general UAT

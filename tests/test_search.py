@@ -4,7 +4,7 @@ import logging
 import re
 from unittest import TestCase
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 class TestSearch(TestCase):
     def test_str_methods(self):
@@ -37,4 +37,4 @@ class TestSearch(TestCase):
 
     def test_router_kn(self):
         dl_list = parse_from_file('router.knight-networks.com')
-        pprint(dl_list)
+        #pprint(dl_list)

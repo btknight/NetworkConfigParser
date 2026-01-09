@@ -161,7 +161,7 @@ def parse_leading_spaces(doc_lines: List[str]) -> List[DocumentLine]:
         # If the current space level is greater than the number of spaces on this new line, this is an end to the
         # current section and the sections should be popped to match.
         if not ignore_spaces() and current_space_level() > new_space_level:
-            logging.debug(f'parse_leading_spaces: space_level {current_space_level} -> {new_space_level}: decr')
+            logging.debug(f'parse_leading_spaces: space_level {current_space_level()} -> {new_space_level}: decr')
             while current_space_level() > new_space_level:
                 dn_stack.pop()
             logging.debug(f'parse_leading_spaces: dn_stack: {dn_stack}')

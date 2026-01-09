@@ -2,7 +2,7 @@
 import ipaddress as ipa
 import logging
 import re
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Callable
 
 
 class DocumentLine(object):
@@ -39,6 +39,15 @@ class DocumentLine(object):
     family:
         Returns a list of family objects, optionally including ancestors, itself, children, and all descendants.
     """
+    ip_patterns = {
+        'ipv6_net': re.compile(r'([0-9A-Fa-f]{4}:[0-9A-Fa-f:]+/\d+)'),
+        'ipv6_addr': re.compile(r'([0-9A-Fa-f]{4}:[0-9A-Fa-f:]+)'),
+        'snmp_oid': re.compile(r'\d+\.\d+\.\d+\.\d+\.'),
+        'ipv4_cidr': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2})'),
+        'ipv4_addr_netmask': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?![\.\-])'),
+        'ipv4_addr': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?![\.\-])'),
+    }
+
     def __init__(self, line_num: int, line: str, parent: Optional[object] = None):
         self.line_num = line_num
         self.line = line
@@ -166,46 +175,79 @@ class DocumentLine(object):
         if line == '':
             return
         new_start = 0
+        def try_search_and_add(pattern: re.Pattern, add_fn: Callable[[str], bool], match_group: int = 1,
+                               match_transform: Callable[[str], str] = lambda x: x) -> Optional[int]:
+            """Attempts to add an IP to the set of IPs that this object tracks.
+
+            Args:
+                pattern:
+                    Regular expression to match the IP address text.
+                add_fn:
+                    The private function to be used to add the IP. Use self._add_ip_net for networks and interfaces,
+                    self._add_ip_addr for single addresses.
+                match_group:
+                    The match group to select from re.Match.
+                match_transform:
+                    The function to be used to transform the IP text from the re.Match result. Defaults to an identity
+                    function that returns the identical string passed to it.
+
+            Returns:
+                The end index of the string that was matched, or None if there was no match or there was a
+                failure of the ipaddress library to parse the extracted IP string.
+                """
+            nonlocal line
+            m = re.search(pattern, line)
+            if m:
+                ip = m.group(match_group)
+                ip = match_transform(ip)
+                logging.debug(f'try_search_and_add: Found match {ip}')
+                if add_fn(ip):
+                    end = m.end(match_group)
+                    logging.debug(f'try_search_and_add: New end is {end}: "{line[:end]}" || "{line[end:]}"')
+                    return end
+            return None
+        #
+        # SNMP OIDs often look like IPs. If OID, exit.
+        if re.search(self.ip_patterns['snmp_oid'], self.line):
+            return None
         #
         # IPv6 network case
-        if m := re.search(r'([0-9A-Fa-f]*:[0-9A-Fa-f:]+/\d+)', line):
-            self._add_ip_net(m.group(1))
-            new_start = m.end(1) + 1
+        if end := try_search_and_add(self.ip_patterns['ipv6_net'], self._add_ip_net):
+            new_start = end
         #
         # IPv6 address case, with no slash
-        elif m := re.search(r'([0-9A-Fa-f]*:[0-9A-Fa-f:]+)', line):
-            self._add_ip_addr(m.group(1))
-            new_start = m.end(1) + 1
+        elif end := try_search_and_add(self.ip_patterns['ipv6_addr'], self._add_ip_addr):
+            new_start = end
         #
         # IPv4 network case, with slash
-        elif m := re.search(r'(\d+\.\d+\.\d+\.\d+/\d+)', line):
-            self._add_ip_net(m.group(1))
-            new_start = m.end(1) + 1
+        elif end := try_search_and_add(self.ip_patterns['ipv4_cidr'], self._add_ip_net):
+            new_start = end
         #
         # IPv4 network case, with address and netmask separated by a space
-        elif m := re.search(r'(\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+)', line):
-            s = '/'.join(m.group(1).split())
-            self._add_ip_net(s)
-            new_start = m.end(1) + 1
+        elif end := try_search_and_add(self.ip_patterns['ipv4_addr_netmask'],
+                                       self._add_ip_net,
+                                       match_transform=lambda x: '/'.join(x.split())):
+            new_start = end
         #
         # IPv4 address case
-        elif m := re.search(r'(\d+\.\d+\.\d+\.\d+)', line):
-            self._add_ip_addr(m.group(1))
-            new_start = m.end(1) + 1
+        elif end := try_search_and_add(self.ip_patterns['ipv4_addr'], self._add_ip_addr):
+            new_start = end
         #
         # If a match was found, continue parsing the line for any additional matches
         if new_start > 0:
             self._parse_ips(line[new_start:])
 
-    def _add_ip_addr(self, ip):
+    def _add_ip_addr(self, ip) -> bool:
         """Attempt to add what looks like an IP address to the tracking set."""
         try:
             self.ip_addrs.add(ipa.ip_address(ip))
             logging.debug(f'DocumentLine: adding IP address "{ip}"')
         except ValueError:
-            pass
+            logging.debug(f'DocumentLine: failed to add IP address "{ip}"')
+            return False
+        return True
 
-    def _add_ip_net(self, ip):
+    def _add_ip_net(self, ip) -> bool:
         """Attempt to add what looks like an IP network to the tracking set. Include both address and network."""
         net_fail = False
         try:
@@ -213,7 +255,7 @@ class DocumentLine(object):
             logging.debug(f'DocumentLine: adding IP network "{ip}"')
             self.ip_nets.add(ip_net)
             self.ip_addrs.add(ip_net.network_address)
-        except (ipa.AddressValueError, ValueError):
+        except (ipa.AddressValueError, ipa.NetmaskValueError, ValueError):
             net_fail = True
         if net_fail:
             try:
@@ -221,8 +263,10 @@ class DocumentLine(object):
                 logging.debug(f'DocumentLine: adding IP interface "{ip}"')
                 self.ip_nets.add(ip_intf.network)
                 self.ip_addrs.add(ip_intf.ip)
-            except ValueError:
-                pass
+            except (ipa.AddressValueError, ipa.NetmaskValueError, ValueError):
+                logging.debug(f'DocumentLine: failed to add IP network "{ip}"')
+                return False
+        return True
 
     def __contains__(self, item):
         return self.line.__contains__(item)
@@ -251,8 +295,13 @@ class DocumentLine(object):
     def __rmul__(self, item):
         return self.line.__rmul__(item)
 
+    def __eq__(self, other):
+        if type(other) == type(self):
+            return other.line_num == self.line_num and other.line == self.line
+        return self.line.__eq__(other)
+
     def __hash__(self):
-        return hash(self.line)
+        return hash(self.line_num) ^ hash(self.line)
 
     def __str__(self):
         return self.line

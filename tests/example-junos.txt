@@ -71,13 +71,13 @@ system {
         }
     }
     login {
-        message "Now, go away or I shall... you know.";
+        message "WARNING: Now, go away or I shall... you know.";
         class ro-class {
             permissions [ firewall interface network routing security system view view-configuration ];
         }
         user mr_hilter {
             full-name "Mr. Hilter";
-            uid 2002;
+            uid 1970;
             class super-user;
             authentication {
                 encrypted-password /* SECRET-DATA */;
@@ -85,15 +85,20 @@ system {
         }
         user harry_organs {
             full-name "Constable Harry 'Snapper' Organs";
-            uid 2000;
+            uid 1971;
             class super-user;
             authentication {
                 encrypted-password /* SECRET-DATA */;
             }
         }
+        user spiny_norman {
+            full-name "Spiny Norman the Enormous Hedgehog";
+            uid 1972;
+            class ro-class;
+        }
         user arthur_putey {
             full-name "Arthur Putey";
-            uid 2005;
+            uid 1973;
             class ro-class;
         }
     }

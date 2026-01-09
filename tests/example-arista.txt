@@ -54,32 +54,25 @@ aaa accounting system default start-stop group TACSERVERS
 aaa accounting commands 1,15 default start-stop group TACSERVERS
 !
 interface Ethernet1/1
-!
-interface Ethernet1/2
-!
-interface Ethernet1/3
-!
-interface Ethernet1/4
-!
-interface Ethernet1/5
    description PUBLIC INTERNET
    load-interval 30
    no switchport
    ip address 198.51.100.28/31
 !
-interface Ethernet1/6
+interface Ethernet1/2
    description INTERNAL
    load-interval 30
    no switchport
    ip address 203.0.113.66/31
 !
-interface Ethernet1/7
-   description ANOTHER INTERNAL
+interface Ethernet1/3
+   description TO NBR ROUTER
    load-interval 30
    no switchport
    ip address 203.0.113.64/31
+   ip ospf area 0.0.0.0
 !
-interface Ethernet1/8
+interface Ethernet1/4
 !
 interface Loopback0
    ip address 203.0.113.1/32
@@ -102,6 +95,11 @@ no ip icmp redirect
 ip routing vrf management
 !
 ntp server vrf management 192.0.2.123 prefer minpoll 3 source Management1/1
+!
+router ospf 1
+   router-id 203.0.113.1
+   no passive-interface Ethernet1/3
+   network 203.0.113.64/31 area 0.0.0.0
 !
 management ssh
    ip access-group MGMT_IN vrf management in
