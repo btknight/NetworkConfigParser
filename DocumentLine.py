@@ -1,5 +1,8 @@
 """Defines the DocumentLine object, a node in a familial tree describing a structured document layout."""
-from typing import Optional, List
+import ipaddress as ipa
+import logging
+import re
+from typing import Optional, List, Set
 
 
 class DocumentLine(object):
@@ -41,6 +44,18 @@ class DocumentLine(object):
         self.line = line
         self.parent = parent
         self.children: List[object] = []
+        self.ip_addrs: Set[ipa.IPv4Address | ipa.IPv6Address] = set()
+        self.ip_nets: Set[ipa.IPv4Network | ipa.IPv6Network] = set()
+        self._parse_ips(line)
+
+    @property
+    def is_comment(self):
+        """True if this line is a comment.
+
+        Returns:
+            A bool indicating if the line is a comment."""
+        comment_chars = ['!', '#']
+        return any(self.line.lstrip().startswith(i) for i in comment_chars)
 
     @property
     def gen(self) -> int:
@@ -109,6 +124,106 @@ class DocumentLine(object):
             family.extend(self.all_descendants)  # All? NO! ALL!
         return family
 
+    def has_ip(self,
+               ip_obj: ipa.IPv4Address | ipa.IPv4Network | ipa.IPv6Interface | ipa.IPv6Address | ipa.IPv6Network | \
+                       ipa.IPv6Interface) -> bool:
+        """Searches for a match on a user-supplied ipaddress object.
+
+        IPv[46]Address, Network, and Interface objects are supported.
+
+        Args:
+            ip_obj:
+                ipaddress.IPv[46]Address, Network, or Interface object to compare.
+
+        Returns:
+            A bool indicating whether a match was found.
+
+        Raises:
+            ValueError:
+                Raised if ip_obj is not a suitable object from the ipaddress library.
+        """
+        addr_match = False
+        net_match = False
+        match type(ip_obj):
+            case ipa.IPv4Address | ipa.IPv6Address:
+                addr_match = any(i == ip_obj for i in self.ip_addrs if i.version == ip_obj.version)
+                net_match =  any(ip_obj in i for i in self.ip_nets  if i.version == ip_obj.version)
+            case ipa.IPv4Network | ipa.IPv6Network:
+                addr_match = any(i in ip_obj for i in self.ip_addrs if i.version == ip_obj.version)
+                net_match =  any(ip_obj == i for i in self.ip_nets  if i.version == ip_obj.version)
+            case ipa.IPv4Interface | ipa.IPv6Interface:
+                addr_match = any(i == ip_obj.ip or i in ip_obj.network for i in self.ip_addrs
+                                 if i.version == ip_obj.version)
+                net_match =  any(ip_obj.network == i for i in self.ip_nets if i.version == ip_obj.version)
+            case _:
+                raise ValueError(f'ip_obj is a {type(ip_obj)} and not an ipaddress.IPv[46]Address, Network, or '
+                                 'Interface. Don\'t forget to import the ipaddress module and supply your value to the '
+                                 'desired object.')
+        return addr_match or net_match
+
+    def _parse_ips(self, line) -> None:
+        """Search for IP addresses or IP networks in this line."""
+        if line == '':
+            return
+        new_start = 0
+        #
+        # IPv6 network case
+        if m := re.search(r'([0-9A-Fa-f]*:[0-9A-Fa-f:]+/\d+)', line):
+            self._add_ip_net(m.group(1))
+            new_start = m.end(1) + 1
+        #
+        # IPv6 address case, with no slash
+        elif m := re.search(r'([0-9A-Fa-f]*:[0-9A-Fa-f:]+)', line):
+            self._add_ip_addr(m.group(1))
+            new_start = m.end(1) + 1
+        #
+        # IPv4 network case, with slash
+        elif m := re.search(r'(\d+\.\d+\.\d+\.\d+/\d+)', line):
+            self._add_ip_net(m.group(1))
+            new_start = m.end(1) + 1
+        #
+        # IPv4 network case, with address and netmask separated by a space
+        elif m := re.search(r'(\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+)', line):
+            s = '/'.join(m.group(1).split())
+            self._add_ip_net(s)
+            new_start = m.end(1) + 1
+        #
+        # IPv4 address case
+        elif m := re.search(r'(\d+\.\d+\.\d+\.\d+)', line):
+            self._add_ip_addr(m.group(1))
+            new_start = m.end(1) + 1
+        #
+        # If a match was found, continue parsing the line for any additional matches
+        if new_start > 0:
+            self._parse_ips(line[new_start:])
+
+    def _add_ip_addr(self, ip):
+        """Attempt to add what looks like an IP address to the tracking set."""
+        try:
+            self.ip_addrs.add(ipa.ip_address(ip))
+            logging.debug(f'DocumentLine: adding IP address "{ip}"')
+        except ValueError:
+            pass
+
+    def _add_ip_net(self, ip):
+        """Attempt to add what looks like an IP network to the tracking set. Include both address and network."""
+        net_fail = False
+        try:
+            ip_net = ipa.ip_network(ip, strict=True)
+            logging.debug(f'DocumentLine: adding IP network "{ip}"')
+            self.ip_nets.add(ip_net)
+            self.ip_addrs.add(ip_net.network_address)
+        except (ipa.AddressValueError, ValueError):
+            net_fail = True
+        if net_fail:
+            try:
+                ip_intf = ipa.ip_interface(ip)
+                logging.debug(f'DocumentLine: adding IP interface "{ip}"')
+                self.ip_nets.add(ip_intf.network)
+                self.ip_addrs.add(ip_intf.ip)
+            except ValueError:
+                pass
+
     def __contains__(self, item):
         return self.line.__contains__(item)
 
@@ -143,7 +258,9 @@ class DocumentLine(object):
         return self.line
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} depth={self.gen} num_children={len(self.children)} line_num={self.line_num}: "{self.line}">'
+        return f'<{self.__class__.__name__} gen={self.gen} num_children={len(self.children)} '\
+               f'num_ip_addrs={len(self.ip_addrs)} num_ip_nets={len(self.ip_nets)} line_num={self.line_num}: '\
+               f'"{self.line}">'
 
     def __getattr__(self, item):
         """Pass unknown attributes and method calls to self.line for text manipulation and validation.

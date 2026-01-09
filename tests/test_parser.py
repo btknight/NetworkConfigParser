@@ -1,12 +1,14 @@
 from parser import *
 from pprint import pprint
 import io
+import ipaddress as ipa
 import logging
 from unittest import TestCase
 
 logging.basicConfig(level=logging.INFO)
 
 class Test_ParseSpacedConfig(TestCase):
+    # TODO add tests oriented around specific methods and functions, not general UAT
     def test_num_leading_spaces(self):
         line = 'interface'
         assert num_leading_spaces(line) == 0
@@ -31,7 +33,7 @@ class Test_ParseSpacedConfig(TestCase):
         assert rp[0] == '<'
         assert rp[-1] == '>'
         assert lo.__class__.__name__ in rp
-        assert 'depth=1' in rp
+        assert 'gen=1' in rp
         assert 'num_children=0' in rp
         assert 'line_num=1' in rp
         assert line.rstrip() in rp
@@ -71,21 +73,36 @@ class Test_ParseSpacedConfig(TestCase):
         config = """interface TenGigE0/1/0/2
  description An example interface
  ipv4 address 192.0.2.1 255.255.255.252
+ ipv6 address 2001:db8:1337:93::1/64
  load-interval 30
  ipv4 access-group TenGigACL ingress
 !"""
         lines = [i + '\n' for i in config.split('\n')]
         p = parse_autodetect(lines)
-        assert len(p) == 6
+        assert len(p) == 7
         lo = p[0]
         assert lo.line == lines[0].rstrip()
         assert lo.line_num == 1
         assert lo.gen == 1
         assert lo.ancestors == []
-        assert lo.children == p[1:5]
-        assert lo.all_descendants == p[1:5]
-        assert lo.family() == p[0:5]
+        assert lo.children == p[1:6]
+        assert lo.all_descendants == p[1:6]
+        assert lo.family() == p[0:6]
         assert lo == lo
+        assert p[2].has_ip(ipa.ip_network('192.0.2.0/30'))
+        assert p[2].has_ip(ipa.ip_address('192.0.2.1'))
+        assert p[2].has_ip(ipa.ip_interface('192.0.2.1'))
+        assert not p[2].has_ip(ipa.ip_address('203.0.113.1'))
+        assert not p[2].has_ip(ipa.ip_network('203.0.113.0/24'))
+        assert not p[2].has_ip(ipa.ip_interface('203.0.113.224/24'))
+        assert p[3].has_ip(ipa.ip_network('2001:db8:1337:93::/64'))
+        assert p[3].has_ip(ipa.ip_address('2001:db8:1337:93::1'))
+        assert p[3].has_ip(ipa.ip_interface('2001:db8:1337:93::1/64'))
+        assert not p[3].has_ip(ipa.ip_network('2001:db8:1337:fb00::/56'))
+        assert not p[3].has_ip(ipa.ip_address('2001:db8:1337:6942::2'))
+        assert not p[3].has_ip(ipa.ip_interface('2001:db8:1338:93::1/64'))
+        with self.assertRaises(ValueError):
+            assert not p[2].has_ip('203.0.113.224/24')
 
     def test_section_multilevel(self):
         config = """l2vpn
