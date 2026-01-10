@@ -4,7 +4,7 @@ import logging
 import re
 from unittest import TestCase
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class TestSearch(TestCase):
     def test_str_methods(self):

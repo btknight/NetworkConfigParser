@@ -2,7 +2,10 @@
 import ipaddress as ipa
 import logging
 import re
-from typing import Optional, List, Set, Callable
+from typing import Optional, List, Callable, Iterator, Tuple
+
+
+IPAddrAndNet = Tuple[ipa.IPv4Address | ipa.IPv6Address, ipa.IPv4Network | ipa.IPv6Network | None]
 
 
 class DocumentLine(object):
@@ -39,9 +42,11 @@ class DocumentLine(object):
     family:
         Returns a list of family objects, optionally including ancestors, itself, children, and all descendants.
     """
+    #
+    # Stores compiled re.Pattern objects for use in DocumentLine._gen_ip_addrs_nets().
     ip_patterns = {
-        'ipv6_net': re.compile(r'([0-9A-Fa-f]{4}:[0-9A-Fa-f:]+/\d+)'),
-        'ipv6_addr': re.compile(r'([0-9A-Fa-f]{4}:[0-9A-Fa-f:]+)'),
+        'ipv6_net': re.compile(r'([0-9A-Fa-f]{0,4}:[0-9A-Fa-f]{0,4}:[0-9A-Fa-f:]*/\d+)'),
+        'ipv6_addr': re.compile(r'([0-9A-Fa-f]{0,4}:[0-9A-Fa-f]{0,4}:[0-9A-Fa-f:]*)'),
         'snmp_oid': re.compile(r'\d+\.\d+\.\d+\.\d+\.'),
         'ipv4_cidr': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2})'),
         'ipv4_addr_netmask': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?![\.\-])'),
@@ -49,13 +54,33 @@ class DocumentLine(object):
     }
 
     def __init__(self, line_num: int, line: str, parent: Optional[object] = None):
-        self.line_num = line_num
-        self.line = line
+        self._line_num = line_num
+        self._line = line
         self.parent = parent
         self.children: List[object] = []
-        self.ip_addrs: Set[ipa.IPv4Address | ipa.IPv6Address] = set()
-        self.ip_nets: Set[ipa.IPv4Network | ipa.IPv6Network] = set()
-        self._parse_ips(line)
+        self._ip_addrs_nets = None
+
+    @property
+    def line_num(self):
+        return self._line_num
+
+    @property
+    def line(self):
+        return self._line
+
+    @property
+    def ip_addrs_nets(self):
+        """Returns a list of ipaddress objects that were parsed in this document line.
+
+        This property method creates the list on first access.
+
+        Returns:
+            A list of tuples (addr, net) where addr is an IPv[46]Address, and net is either an IPv[46]Network object or
+            None if only an address was detected.
+        """
+        if self._ip_addrs_nets is None:
+            self._ip_addrs_nets = list(self._gen_ip_addrs_nets())
+        return self._ip_addrs_nets
 
     @property
     def is_comment(self):
@@ -151,40 +176,63 @@ class DocumentLine(object):
             ValueError:
                 Raised if ip_obj is not a suitable object from the ipaddress library.
         """
-        addr_match = False
-        net_match = False
+        ip_match = False
+        def addr_matches(test_item: ipa.IPv4Address | ipa.IPv6Address, ip_addr_net: IPAddrAndNet) -> bool:
+            """Returns True if the user-supplied IPv[46]Address object matches what was parsed."""
+            addr, net = ip_addr_net
+            addr_test = addr.version == test_item.version and addr == test_item
+            net_test  = net is not None and net.version == test_item.version and net.prefixlen > 0 and test_item in net
+            return addr_test or net_test
+        def net_matches(test_item: ipa.IPv4Network | ipa.IPv6Network, ip_addr_net: IPAddrAndNet) -> bool:
+            """Returns True if the user-supplied IPv[46]Network object matches what was parsed."""
+            addr, net = ip_addr_net
+            addr_test = addr.version == test_item.version and test_item.prefixlen > 0 and addr in test_item
+            net_test  = net is not None and net.version == test_item.version and net == test_item
+            return addr_test or net_test
+        def intf_matches(test_item: ipa.IPv4Interface | ipa.IPv6Interface, ip_addr_net: IPAddrAndNet) -> bool:
+            """Returns True if the user-supplied IPv[46]Network object matches what was parsed."""
+            addr, net = ip_addr_net
+            addr_test = addr.version == test_item.version and addr == test_item.ip
+            net_test  = net is not None and net.version == test_item.version and net == test_item.network
+            return addr_test and net_test
         match type(ip_obj):
             case ipa.IPv4Address | ipa.IPv6Address:
-                addr_match = any(i == ip_obj for i in self.ip_addrs if i.version == ip_obj.version)
-                net_match =  any(ip_obj in i for i in self.ip_nets  if i.version == ip_obj.version)
+                ip_match = any(addr_matches(ip_obj, an) for an in self.ip_addrs_nets)
             case ipa.IPv4Network | ipa.IPv6Network:
-                addr_match = any(i in ip_obj for i in self.ip_addrs if i.version == ip_obj.version)
-                net_match =  any(ip_obj == i for i in self.ip_nets  if i.version == ip_obj.version)
+                ip_match = any(net_matches(ip_obj, an) for an in self.ip_addrs_nets)
             case ipa.IPv4Interface | ipa.IPv6Interface:
-                addr_match = any(i == ip_obj.ip or i in ip_obj.network for i in self.ip_addrs
-                                 if i.version == ip_obj.version)
-                net_match =  any(ip_obj.network == i for i in self.ip_nets if i.version == ip_obj.version)
+                ip_match = any(intf_matches(ip_obj, an) for an in self.ip_addrs_nets)
             case _:
                 raise ValueError(f'ip_obj is a {type(ip_obj)} and not an ipaddress.IPv[46]Address, Network, or '
                                  'Interface. Don\'t forget to import the ipaddress module and supply your value to the '
                                  'desired object.')
-        return addr_match or net_match
+        return ip_match
 
-    def _parse_ips(self, line) -> None:
-        """Search for IP addresses or IP networks in this line."""
-        if line == '':
-            return
-        new_start = 0
-        def try_search_and_add(pattern: re.Pattern, add_fn: Callable[[str], bool], match_group: int = 1,
-                               match_transform: Callable[[str], str] = lambda x: x) -> Optional[int]:
-            """Attempts to add an IP to the set of IPs that this object tracks.
+    def _gen_ip_addrs_nets(self) -> Iterator[IPAddrAndNet]:
+        """Iterator that looks for IP addresses or IP networks in this line.
+
+        If this document line has a term that looks like an IP address, this iterator will return that IP as an
+        IPv[46]Address object. Additionally, if the IP looks more like a network statement (ex. '192.0.2.0/24',
+        '192.0.2.0 255.255.255.0', '192.0.2.0 0.0.0.255', '2001:db8:690:42::/64'), an IPv[46]Network object will be
+        returned also.
+
+        Yields:
+            A tuple (addr, net) where addr is an IPv[46]Address, and net is either an IPv[46]Network object or None
+            if only an address was detected.
+        """
+        line = self.line
+        def try_search_and_parse(pattern: re.Pattern,
+                                 convert_fn: Callable[[str], Optional[IPAddrAndNet]],
+                                 match_group: int = 1,
+                                 match_transform: Callable[[str], str] = lambda x: x) -> Optional[IPAddrAndNet]:
+            """Attempts to parse an IP in the line that this object represents.
 
             Args:
                 pattern:
                     Regular expression to match the IP address text.
-                add_fn:
-                    The private function to be used to add the IP. Use self._add_ip_net for networks and interfaces,
-                    self._add_ip_addr for single addresses.
+                convert_fn:
+                    The private function to be used to convert the string to an ipaddress object. Use self._add_ip_net
+                    for networks and interfaces, self._add_ip_addr for single addresses.
                 match_group:
                     The match group to select from re.Match.
                 match_transform:
@@ -198,75 +246,86 @@ class DocumentLine(object):
             nonlocal line
             m = re.search(pattern, line)
             if m:
+                #
+                # Extract the match
                 ip = m.group(match_group)
+                #
+                # Run the user-supplied transform on the extracted object (used to add a / between address and netmask
+                # from IOS configurations, so IPv4Network knows about netmask)
                 ip = match_transform(ip)
-                logging.debug(f'try_search_and_add: Found match {ip}')
-                if add_fn(ip):
+                logging.debug(f'try_search_and_parse: Found re match {ip}')
+                #
+                # If the conversion to an ipaddress object is successful
+                if result := convert_fn(ip):
+                    logging.debug(f'try_search_and_parse: {ip} converted to {result}')
+                    #
+                    # Shrink the line to the end of the matched term
                     end = m.end(match_group)
-                    logging.debug(f'try_search_and_add: New end is {end}: "{line[:end]}" || "{line[end:]}"')
-                    return end
+                    logging.debug(f'try_search_and_parse: New end is {end}: "{line[:end]}" || "{line[end:]}"')
+                    line = line[end:]
+                    return result
+                logging.debug(f'try_search_and_parse: failed to parse {ip}')
             return None
         #
         # SNMP OIDs often look like IPs. If OID, exit.
         if re.search(self.ip_patterns['snmp_oid'], self.line):
-            return None
+            return
         #
-        # IPv6 network case
-        if end := try_search_and_add(self.ip_patterns['ipv6_net'], self._add_ip_net):
-            new_start = end
-        #
-        # IPv6 address case, with no slash
-        elif end := try_search_and_add(self.ip_patterns['ipv6_addr'], self._add_ip_addr):
-            new_start = end
-        #
-        # IPv4 network case, with slash
-        elif end := try_search_and_add(self.ip_patterns['ipv4_cidr'], self._add_ip_net):
-            new_start = end
-        #
-        # IPv4 network case, with address and netmask separated by a space
-        elif end := try_search_and_add(self.ip_patterns['ipv4_addr_netmask'],
-                                       self._add_ip_net,
-                                       match_transform=lambda x: '/'.join(x.split())):
-            new_start = end
-        #
-        # IPv4 address case
-        elif end := try_search_and_add(self.ip_patterns['ipv4_addr'], self._add_ip_addr):
-            new_start = end
-        #
-        # If a match was found, continue parsing the line for any additional matches
-        if new_start > 0:
-            self._parse_ips(line[new_start:])
+        # Search in our copy of self.line
+        while len(line) > 0:
+            #
+            # IPv6 network case
+            if net_addr_t := try_search_and_parse(self.ip_patterns['ipv6_net'], self._parse_ip_net):
+                yield net_addr_t
+            #
+            # IPv6 address case, with no slash
+            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv6_addr'], self._parse_ip_addr):
+                yield net_addr_t
+            #
+            # IPv4 network case, with slash
+            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv4_cidr'], self._parse_ip_net):
+                yield net_addr_t
+            #
+            # IPv4 network case, with address and netmask separated by a space
+            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv4_addr_netmask'],
+                                           self._parse_ip_net,
+                                           match_transform=lambda x: '/'.join(x.split())):
+                yield net_addr_t
+            #
+            # IPv4 address case
+            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv4_addr'], self._parse_ip_addr):
+                yield net_addr_t
+            #
+            # Otherwise no matches were found
+            else:
+                return
 
-    def _add_ip_addr(self, ip) -> bool:
-        """Attempt to add what looks like an IP address to the tracking set."""
+    @staticmethod
+    def _parse_ip_addr(ip: str) -> Optional[IPAddrAndNet]:
+        """Attempt to parse what looks like an IP address."""
         try:
-            self.ip_addrs.add(ipa.ip_address(ip))
-            logging.debug(f'DocumentLine: adding IP address "{ip}"')
+            ip_addr = ipa.ip_address(ip)
         except ValueError:
-            logging.debug(f'DocumentLine: failed to add IP address "{ip}"')
-            return False
-        return True
+            return None
+        return ip_addr, None
 
-    def _add_ip_net(self, ip) -> bool:
-        """Attempt to add what looks like an IP network to the tracking set. Include both address and network."""
+    @staticmethod
+    def _parse_ip_net(ip: str) -> Optional[IPAddrAndNet]:
+        """Attempt to parse what looks like an IP network. Include both address and network."""
         net_fail = False
         try:
             ip_net = ipa.ip_network(ip, strict=True)
-            logging.debug(f'DocumentLine: adding IP network "{ip}"')
-            self.ip_nets.add(ip_net)
-            self.ip_addrs.add(ip_net.network_address)
+            ip_addr = ip_net.network_address
         except (ipa.AddressValueError, ipa.NetmaskValueError, ValueError):
             net_fail = True
         if net_fail:
             try:
                 ip_intf = ipa.ip_interface(ip)
-                logging.debug(f'DocumentLine: adding IP interface "{ip}"')
-                self.ip_nets.add(ip_intf.network)
-                self.ip_addrs.add(ip_intf.ip)
+                ip_net = ip_intf.network
+                ip_addr = ip_intf.ip
             except (ipa.AddressValueError, ipa.NetmaskValueError, ValueError):
-                logging.debug(f'DocumentLine: failed to add IP network "{ip}"')
-                return False
-        return True
+                return None
+        return ip_addr, ip_net
 
     def __contains__(self, item):
         return self.line.__contains__(item)
@@ -296,20 +355,19 @@ class DocumentLine(object):
         return self.line.__rmul__(item)
 
     def __eq__(self, other):
-        if type(other) == type(self):
-            return other.line_num == self.line_num and other.line == self.line
-        return self.line.__eq__(other)
+        if type(other) is type(self):
+            return other.line_num == self._line_num and other.line == self._line
+        return self._line == other
 
     def __hash__(self):
-        return hash(self.line_num) ^ hash(self.line)
+        return hash((self._line_num, self._line))
 
     def __str__(self):
-        return self.line
+        return self._line
 
     def __repr__(self):
         return f'<{self.__class__.__name__} gen={self.gen} num_children={len(self.children)} '\
-               f'num_ip_addrs={len(self.ip_addrs)} num_ip_nets={len(self.ip_nets)} line_num={self.line_num}: '\
-               f'"{self.line}">'
+               f'line_num={self._line_num}: "{self._line}">'
 
     def __getattr__(self, item):
         """Pass unknown attributes and method calls to self.line for text manipulation and validation.
@@ -321,4 +379,4 @@ class DocumentLine(object):
         Returns:
             Attribute or method from self.line that was called
         """
-        return getattr(self.line, item)
+        return getattr(self._line, item)

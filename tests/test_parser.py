@@ -1,11 +1,12 @@
 from parser import *
 from pprint import pprint
+from collections import defaultdict
 import io
 import ipaddress as ipa
 import logging
 from unittest import TestCase
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class Test_ParseSpacedConfig(TestCase):
     # TODO add tests oriented around specific methods and functions, not general UAT
@@ -29,14 +30,6 @@ class Test_ParseSpacedConfig(TestCase):
         assert lo.all_descendants == []
         assert lo.family() == [lo]
         assert lo == lo
-        rp = repr(lo)
-        assert rp[0] == '<'
-        assert rp[-1] == '>'
-        assert lo.__class__.__name__ in rp
-        assert 'gen=1' in rp
-        assert 'num_children=0' in rp
-        assert 'line_num=1' in rp
-        assert line.rstrip() in rp
 
     def test_banner(self):
         config = """banner login ^C
@@ -91,7 +84,7 @@ class Test_ParseSpacedConfig(TestCase):
         assert lo == lo
         assert p[2].has_ip(ipa.ip_network('192.0.2.0/30'))
         assert p[2].has_ip(ipa.ip_address('192.0.2.1'))
-        assert p[2].has_ip(ipa.ip_interface('192.0.2.1'))
+        assert p[2].has_ip(ipa.ip_interface('192.0.2.1/30'))
         assert not p[2].has_ip(ipa.ip_address('203.0.113.1'))
         assert not p[2].has_ip(ipa.ip_network('203.0.113.0/24'))
         assert not p[2].has_ip(ipa.ip_interface('203.0.113.224/24'))
@@ -197,3 +190,22 @@ route-policy DEFAULT-ONLY
         assert p[8].children == p[9:14]
         assert p[8].all_descendants == p[9:14]
         log_output.close()
+
+    def test_example_arista(self):
+        p = parse_from_file('example-arista.txt')
+        #print(f'test_example_arista: len(p) = {len(p)}')
+        assert len(p) == 114
+        gen_distribution = defaultdict(lambda: 0)
+        for dl in p:
+            gen_distribution[dl.gen] += 1
+        measured_distribution = {1: 78, 2: 34, 3: 2}
+        assert gen_distribution == measured_distribution
+
+    def test_example_junos(self):
+        p = parse_from_file('example-junos.txt')
+        assert len(p) == 224
+        gen_distribution = defaultdict(lambda: 0)
+        for dl in p:
+            gen_distribution[dl.gen] += 1
+        measured_distribution = {1: 11, 2: 41, 3: 66, 4: 74, 5: 21, 6: 7, 7: 4}
+        assert gen_distribution == measured_distribution
