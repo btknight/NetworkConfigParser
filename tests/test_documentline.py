@@ -9,7 +9,7 @@ class TestDocumentLine(unittest.TestCase):
         # Two IPs should be found in this line, one parsed as IPv6Network, one as IPv6Address
         ip_route = 'ipv6 route 2001:db8:690:f00b::/64 Tunnel6 2001:db8:690::1'
         dl = DocumentLine(1, ip_route)
-        ips = dl.ip_addrs_nets
+        ips = [i for i in dl._gen_ip_addrs_nets()]
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv6Address('2001:db8:690:f00b::')
@@ -21,7 +21,7 @@ class TestDocumentLine(unittest.TestCase):
         # One IP should be found in this line, parsed as IPv6Interface
         ip_cidr = 'ipv6 address 2001:db8:690:42::3/64'
         dl = DocumentLine(1, ip_cidr)
-        ips = dl.ip_addrs_nets
+        ips = [i for i in dl._gen_ip_addrs_nets()]
         a, n = ips[0]
         assert a == ipa.IPv6Address('2001:db8:690:42::3')
         assert n == ipa.IPv6Network('2001:db8:690:42::/64')
@@ -29,7 +29,7 @@ class TestDocumentLine(unittest.TestCase):
         # A default route case
         ip_route = 'ipv6 route ::/0 Gig0/0/0 2001:db8:690::1'
         dl = DocumentLine(1, ip_route)
-        ips = dl.ip_addrs_nets
+        ips = [i for i in dl._gen_ip_addrs_nets()]
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv6Address('::')
@@ -44,13 +44,13 @@ class TestDocumentLine(unittest.TestCase):
         ip_route = 'ipv6 route 2001:db8:690:f00b::/64 Tunnel6 2001:db8:690::1'
         dl = DocumentLine(1, ip_route)
         assert dl.has_ip(ipa.IPv6Address('2001:db8:690:f00b::'))
-        assert dl.has_ip(ipa.IPv6Address('2001:db8:690:f00b::14'))
+        assert not dl.has_ip(ipa.IPv6Address('2001:db8:690:f00b::14'))
         assert dl.has_ip(ipa.IPv6Address('2001:db8:690::1'))
         assert not dl.has_ip(ipa.IPv6Address('2001:db8:690:f00d::14'))
         assert not dl.has_ip(ipa.IPv6Address('2001:db8:690::2'))
         assert not dl.has_ip(ipa.IPv4Address('192.0.2.1'))
         assert dl.has_ip(ipa.IPv6Network('2001:db8:690:f00b::/64'))
-        assert dl.has_ip(ipa.IPv6Network('2001:db8:690::/64'))
+        assert not dl.has_ip(ipa.IPv6Network('2001:db8:690::/64'))
         assert not dl.has_ip(ipa.IPv6Network('2001:db8:690:f00d::/64'))
         assert not dl.has_ip(ipa.IPv4Network('192.0.2.0/24'))
         assert not dl.has_ip(ipa.IPv6Interface('2001:db8:690:f00b::1/64'))
@@ -78,7 +78,7 @@ class TestDocumentLine(unittest.TestCase):
         assert not dl.has_ip(ipa.IPv6Address('2001:db8:690:f00d::3'))
         assert not dl.has_ip(ipa.IPv4Address('192.0.2.1'))
         assert dl.has_ip(ipa.IPv6Network('::/0'))
-        assert dl.has_ip(ipa.IPv6Network('2001:db8:690::/64'))
+        assert not dl.has_ip(ipa.IPv6Network('2001:db8:690::/64'))
         assert not dl.has_ip(ipa.IPv4Network('192.0.2.0/24'))
         assert not dl.has_ip(ipa.IPv6Network('2001:db8:690:f00d::/64'))
         assert not dl.has_ip(ipa.IPv4Interface('192.0.2.1/24'))
@@ -88,7 +88,7 @@ class TestDocumentLine(unittest.TestCase):
         # Two IPs should be found in this line, one parsed as IPv4Network, one as IPv4Address
         ip_route = 'ip route 203.0.113.0 255.255.255.0 192.0.2.233'
         dl = DocumentLine(1, ip_route)
-        ips = dl.ip_addrs_nets
+        ips = [i for i in dl._gen_ip_addrs_nets()]
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv4Address('203.0.113.0')
@@ -100,7 +100,7 @@ class TestDocumentLine(unittest.TestCase):
         # One IP should be found in this line, parsed as IPv4Interface
         ip_cidr = 'ip address 203.0.113.129/25'
         dl = DocumentLine(1, ip_cidr)
-        ips = dl.ip_addrs_nets
+        ips = [i for i in dl._gen_ip_addrs_nets()]
         a, n = ips[0]
         assert a == ipa.IPv4Address('203.0.113.129')
         assert n == ipa.IPv4Network('203.0.113.128/25')
@@ -108,7 +108,7 @@ class TestDocumentLine(unittest.TestCase):
         # A default route case
         ip_route = 'ip route 0.0.0.0 0.0.0.0 192.0.2.233'
         dl = DocumentLine(1, ip_route)
-        ips = dl.ip_addrs_nets
+        ips = [i for i in dl._gen_ip_addrs_nets()]
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv4Address('0.0.0.0')
@@ -123,13 +123,14 @@ class TestDocumentLine(unittest.TestCase):
         ip_route = 'ip route 203.0.113.0 255.255.255.0 192.0.2.233'
         dl = DocumentLine(1, ip_route)
         assert dl.has_ip(ipa.IPv4Address('203.0.113.0'))
-        assert dl.has_ip(ipa.IPv4Address('203.0.113.1'))
         assert dl.has_ip(ipa.IPv4Address('192.0.2.233'))
+        assert not dl.has_ip(ipa.IPv4Address('203.0.113.1'))
         assert not dl.has_ip(ipa.IPv4Address('192.0.2.0'))
         assert not dl.has_ip(ipa.IPv6Address('2001:db8:690:f00b::14'))
         assert dl.has_ip(ipa.IPv4Network('203.0.113.0/24'))
         assert not dl.has_ip(ipa.IPv4Network('203.0.113.128/29'))
         assert not dl.has_ip(ipa.IPv6Network('2001:db8:690:f00b::/64'))
+        assert not dl.has_ip(ipa.IPv4Interface('203.0.113.1/24'))
         assert not dl.has_ip(ipa.IPv4Interface('203.0.113.1/24'))
         assert not dl.has_ip(ipa.IPv6Interface('2001:db8:690:f00b::1/64'))
         #
@@ -137,7 +138,7 @@ class TestDocumentLine(unittest.TestCase):
         ip_cidr = 'ip address 203.0.113.129/25'
         dl = DocumentLine(1, ip_cidr)
         assert dl.has_ip(ipa.IPv4Address('203.0.113.129'))
-        assert dl.has_ip(ipa.IPv4Address('203.0.113.130'))
+        assert not dl.has_ip(ipa.IPv4Address('203.0.113.130'))
         assert not dl.has_ip(ipa.IPv4Address('203.0.113.127'))
         assert not dl.has_ip(ipa.IPv6Address('2001:db8:690:f00b::14'))
         assert dl.has_ip(ipa.IPv4Network('203.0.113.128/25'))

@@ -58,7 +58,9 @@ class DocumentLine(object):
         self._line = line
         self.parent = parent
         self.children: List[object] = []
-        self._ip_addrs_nets = None
+        self._ips_parsed = False
+        self._ip_addrs = None
+        self._ip_nets = None
 
     @property
     def line_num(self):
@@ -69,18 +71,30 @@ class DocumentLine(object):
         return self._line
 
     @property
-    def ip_addrs_nets(self):
-        """Returns a list of ipaddress objects that were parsed in this document line.
+    def ip_addrs(self):
+        """Returns a set of IPv[46]Address objects that were parsed in this document line.
 
-        This property method creates the list on first access.
+        This property method creates the set on first access.
 
         Returns:
-            A list of tuples (addr, net) where addr is an IPv[46]Address, and net is either an IPv[46]Network object or
-            None if only an address was detected.
+            A set of IPv[46]Address objects.
         """
-        if self._ip_addrs_nets is None:
-            self._ip_addrs_nets = list(self._gen_ip_addrs_nets())
-        return self._ip_addrs_nets
+        if not self._ips_parsed:
+            self._create_ip_sets()
+        return self._ip_addrs
+
+    @property
+    def ip_nets(self):
+        """Returns a set of IPv[46]Network objects that were parsed in this document line.
+
+        This property method creates the set on first access.
+
+        Returns:
+            A set of IPv[46]Network objects.
+        """
+        if not self._ips_parsed:
+            self._create_ip_sets()
+        return self._ip_nets
 
     @property
     def is_comment(self):
@@ -177,36 +191,25 @@ class DocumentLine(object):
                 Raised if ip_obj is not a suitable object from the ipaddress library.
         """
         ip_match = False
-        def addr_matches(test_item: ipa.IPv4Address | ipa.IPv6Address, ip_addr_net: IPAddrAndNet) -> bool:
-            """Returns True if the user-supplied IPv[46]Address object matches what was parsed."""
-            addr, net = ip_addr_net
-            addr_test = addr.version == test_item.version and addr == test_item
-            net_test  = net is not None and net.version == test_item.version and net.prefixlen > 0 and test_item in net
-            return addr_test or net_test
-        def net_matches(test_item: ipa.IPv4Network | ipa.IPv6Network, ip_addr_net: IPAddrAndNet) -> bool:
-            """Returns True if the user-supplied IPv[46]Network object matches what was parsed."""
-            addr, net = ip_addr_net
-            addr_test = addr.version == test_item.version and test_item.prefixlen > 0 and addr in test_item
-            net_test  = net is not None and net.version == test_item.version and net == test_item
-            return addr_test or net_test
-        def intf_matches(test_item: ipa.IPv4Interface | ipa.IPv6Interface, ip_addr_net: IPAddrAndNet) -> bool:
-            """Returns True if the user-supplied IPv[46]Network object matches what was parsed."""
-            addr, net = ip_addr_net
-            addr_test = addr.version == test_item.version and addr == test_item.ip
-            net_test  = net is not None and net.version == test_item.version and net == test_item.network
-            return addr_test and net_test
         match type(ip_obj):
             case ipa.IPv4Address | ipa.IPv6Address:
-                ip_match = any(addr_matches(ip_obj, an) for an in self.ip_addrs_nets)
+                ip_match = ip_obj in self.ip_addrs
             case ipa.IPv4Network | ipa.IPv6Network:
-                ip_match = any(net_matches(ip_obj, an) for an in self.ip_addrs_nets)
+                ip_match = ip_obj in self.ip_nets
             case ipa.IPv4Interface | ipa.IPv6Interface:
-                ip_match = any(intf_matches(ip_obj, an) for an in self.ip_addrs_nets)
+                ip_match = ip_obj.ip in self.ip_addrs and ip_obj.network in self.ip_nets
             case _:
                 raise ValueError(f'ip_obj is a {type(ip_obj)} and not an ipaddress.IPv[46]Address, Network, or '
-                                 'Interface. Don\'t forget to import the ipaddress module and supply your value to the '
-                                 'desired object.')
+                                 'Interface')
         return ip_match
+
+    def _create_ip_sets(self) -> None:
+        """Creates the IP sets self.ip_addrs and self.ip_nets. Called by the accessor properties on first request."""
+        addrs_nets = [i for i in self._gen_ip_addrs_nets()]
+        self._ip_addrs = frozenset({a for a, _ in addrs_nets})
+        self._ip_nets  = frozenset({n for _, n in addrs_nets if n is not None})
+        self._ips_parsed = True
+        return
 
     def _gen_ip_addrs_nets(self) -> Iterator[IPAddrAndNet]:
         """Iterator that looks for IP addresses or IP networks in this line.
