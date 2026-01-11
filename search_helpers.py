@@ -31,11 +31,11 @@ def find_lines(doc_lines: List[DocumentLine],
             If set to False, and search_spec is an iterable, only immediate children of the previous match
             will be searched for the next term. If True, all descendants of the previous match will be searched.
         convert_result:
-            If specified, run the supplied function to convert matched lines in the output list. Default is an identity
-            function.
+            If specified, run the supplied function to convert matches in the output list. Default is to return the
+            DocumentLine object.
         convert_family:
             If specified, and an include_* parameter is set to True, run the supplied function to convert family lines
-            in the output list. Default is an identity function.
+            other than the matched line in the output list. Default is to return DocumentLine objects.
         flatten_family:
             If False, returns a list of lists where the second order list contains the match, plus any family lines if
             specified. If True, the list of matches and any family members is flattened into a single list.
@@ -66,7 +66,7 @@ def find_lines(doc_lines: List[DocumentLine],
     passthru_opts = {k: v for k, v in locals().items() if any(k.startswith(opt) for opt in passthru_names)}
     #
     # Handle the case where search_spec is an iterable.
-    if isiterable(search_spec):
+    if isiterable(search_spec) and all(callable(i) for i in search_spec):
         search_spec = [i for i in search_spec]
         #
         # For each search callable except for the last
@@ -83,14 +83,21 @@ def find_lines(doc_lines: List[DocumentLine],
         # Set search_spec to the last term, and exit this if statement - this runs the final match with user-specified
         # options
         search_spec = search_spec[-1]
-    elif not callable(search_spec):
-        raise ValueError(f'find_lines: Supplied object is {type(search_spec)}; allowed objects are callables '
-                         'or list of callables')
     #
-    result = _find_lines(doc_lines, search_spec, **passthru_opts)
-    if len(result) == 0:
-        return None
-    return result
+    # Raise ValueError if not all members in the list are callable.
+    elif isiterable(search_spec):
+        non_callable = [str((i, type(i))) for i in search_spec if not callable(i)]
+        raise ValueError(f'find_lines: Not all objects in the iterable are callables: {", ".join(non_callable)}')
+    #
+    # Handle single callable
+    elif callable(search_spec):
+        result = _find_lines(doc_lines, search_spec, **passthru_opts)
+        if len(result) == 0:
+            return None
+        return result
+    else:
+        raise ValueError(f'find_lines: Supplied object is {type(search_spec)}; allowed objects are callables '
+                         'or list of callables. Are you looking for find_lines_regex()?')
 
 
 def find_lines_regex(doc_lines: List[DocumentLine],
@@ -118,14 +125,14 @@ def find_lines_regex(doc_lines: List[DocumentLine],
             If set to False, and regex_spec is an iterable, only immediate children of the previous match
             will be searched for the next term. If True, all descendants of the previous match will be searched.
         group:
-            If specified, returns the string matching the regular expression group from the re.Match object. Default is
-            None.
+            If specified, returns the string matching the regular expression group from the final re.Match object as a
+            result. May not be used if convert_result is also set. Default is None.
         convert_result:
-            If specified, run the supplied function to convert matched lines in the output list. Default is an identity
-            function.
+            If specified, run the supplied function to convert matches in the output list. May not be used if group is
+            set. Default is to return the DocumentLine object.
         convert_family:
             If specified, and an include_* parameter is set to True, run the supplied function to convert family lines
-            in the output list. Default is an identity function.
+            other than the matched line in the output list. Default is to return DocumentLine objects.
         flatten_family:
             If False, returns a list of lists where the second order list contains the match, plus any family lines if
             specified. If True, the list of matches and any family members is flattened into a single list.
@@ -150,20 +157,30 @@ def find_lines_regex(doc_lines: List[DocumentLine],
 
     Raises:
         ValueError:
-            Raised if regex_spec is not a str, re.Pattern, or iterable.
+            Raised if regex_spec is not a str, re.Pattern, or iterable. Also raised if group and convert_result are set
+            together.
     """
+    def is_valid_re_term(x):
+        return isinstance(x, str) or isinstance(x, re.Pattern)
     #
     # Map regex_spec to callables.
-    if isinstance(regex_spec, str) or isinstance(regex_spec, re.Pattern):
-        search_spec = re_search_cb(regex_spec)
-        final_term = regex_spec
-    elif isiterable(regex_spec):
+    if isiterable(regex_spec) and all(is_valid_re_term(i) for i in regex_spec):
         regex_spec = [i for i in regex_spec]
         search_spec = [re_search_cb(i) for i in regex_spec]
         final_term = regex_spec[-1]
+    #
+    # Handle iterables that don't have all strings.
+    elif isiterable(regex_spec):
+        non_str = [str((i, type(i))) for i in regex_spec if not is_valid_re_term(i)]
+        raise ValueError(f'find_lines: Not all objects in the iterable are valid regex terms: {", ".join(non_str)}')
+    #
+    # Handle str or re.Pattern.
+    elif is_valid_re_term(regex_spec):
+        search_spec = re_search_cb(regex_spec)
+        final_term = regex_spec
     else:
         raise ValueError(f'find_lines_regex: Supplied object is {type(regex_spec)}; allowed objects are str, '
-                         're.Pattern, or List[str | re.Pattern]')
+                             're.Pattern, or List[str | re.Pattern]')
     #
     # Deal with group and convert_result.
     if group and not convert_result == identity:
@@ -193,11 +210,11 @@ def _find_lines(doc_lines: List[DocumentLine],
         search_fn:
             A function that takes a DocumentLine as input and returns a bool indicating a match.
         convert_result:
-            If specified, run the supplied function to convert matched lines in the output list. Default is an identity
-            function.
+            If specified, run the supplied function to convert matches in the output list. Default is to return the
+            DocumentLine object.
         convert_family:
             If specified, and an include_* parameter is set to True, run the supplied function to convert family lines
-            in the output list. Default is an identity function.
+            other than the matched line in the output list. Default is to return DocumentLine objects.
         flatten_family:
             If False, returns a list of lists where the second order list contains the match, plus any family lines if
             specified. If True, the list of matches and any family members is flattened into a single list.
@@ -222,31 +239,34 @@ def _find_lines(doc_lines: List[DocumentLine],
         from the document. If flatten_family is False, returns a list of lists instead.
         """
     #
-    # Identity function for the case suppress_common_ancestors == False.
-    s = identity
-    #
-    # If suppress_common_ancestors == True, get a closure function to help suppress common lines.
+    # If suppress_common_ancestors is True, get a closure function to help suppress common lines.
     if suppress_common_ancestors:
         s = common_line_suppressor()
+    else:
+        s = identity
     #
     # Perform the comparison.
     matches = [i for i in doc_lines if search_fn(i)]
     #
     # If no include_ options to DocumentLine.family() are specified, return the matches, converting the result.
     if not any(family_options.values()):
-        return [convert_result(i) for i in matches]
+        if flatten_family:
+            return [convert_result(i) for i in matches]
+        return [[convert_result(i)] for i in matches]
+
     #
-    # Closure to apply conversions.
+    # Process family lines.
+    #
+    # Define a closure to apply conversions.
     def convert_line(o: DocumentLine) -> Any:
         if o in matches:
             return convert_result(o)
         return convert_family(o)
     #
-    # Otherwise, perform another comprehension to get the familial lines added to the result.
+    # Perform another comprehension to get the familial lines added to the result.
     if flatten_family:
         return [convert_line(j) for i in matches for j in s(i.family(**family_options))]
-    else:
-        return [[convert_line(j) for j in i.family(**family_options)] for i in matches]
+    return [[convert_line(j) for j in i.family(**family_options)] for i in matches]
 
 def re_search_dl(regex: str | re.Pattern, dl_object: DocumentLine, *flags) -> re.Match | None:
     """Helper function to perform regex searches on DocumentLine objects.
