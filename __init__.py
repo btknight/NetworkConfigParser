@@ -56,5 +56,5 @@ no children of its own.
 line 04. The reason is line 04 has an additional space in front, indicating it is a sub-directive of line 03.
 """
 from DocumentLine import DocumentLine
-from parser import parse_from_file, parse_text_list, parse_text_string, parse_autodetect, parse_leading_spaces, parse_braced
+from parser import parse_from_file, parse_from_str_list, parse_from_str, parse_autodetect, parse_leading_spaces, parse_braced
 from search_helpers import find_line_and_ancestors, find_line_ancestors_descendants

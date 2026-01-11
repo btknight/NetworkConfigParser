@@ -220,9 +220,9 @@ def parse_from_file(document_filename: str) -> List[DocumentLine]:
     """
     with open(document_filename) as fh:
         config = fh.readlines()
-    return parse_text_list(config)
+    return parse_from_str_list(config)
 
-def parse_text_list(doc_lines: List[str]) -> List[DocumentLine]:
+def parse_from_str_list(doc_lines: List[str]) -> List[DocumentLine]:
     """Parses a document stored in a list of text.
 
     Alias for parse_autodetect().
@@ -235,7 +235,7 @@ def parse_text_list(doc_lines: List[str]) -> List[DocumentLine]:
     """
     return parse_autodetect(doc_lines)
 
-def parse_text_string(document: str) -> List[DocumentLine]:
+def parse_from_str(document: str) -> List[DocumentLine]:
     """Parses a document stored in memory as a single string of text.
 
     Roughly equal to:
@@ -247,4 +247,4 @@ def parse_text_string(document: str) -> List[DocumentLine]:
     Returns:
         A list of DocumentLines parsed by parse_autodetect().
     """
-    return parse_text_list(document.split('\n'))
+    return parse_from_str_list(document.split('\n'))
