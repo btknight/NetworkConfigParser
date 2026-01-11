@@ -61,7 +61,7 @@ def find_lines(doc_lines: List[DocumentLine],
     Raises:
         ValueError:
             Raised if search_spec is not an iterable or callable.
-        """
+    """
     passthru_names = ['convert_', 'suppress_', 'include_', 'flatten_']
     passthru_opts = {k: v for k, v in locals().items() if any(k.startswith(opt) for opt in passthru_names)}
     #
@@ -84,21 +84,21 @@ def find_lines(doc_lines: List[DocumentLine],
         # options
         search_spec = search_spec[-1]
     #
-    # Raise ValueError if not all members in the list are callable.
+    # Raise ValueError if not all members in the iterable are callable.
     elif isiterable(search_spec):
         non_callable = [str((i, type(i))) for i in search_spec if not callable(i)]
         raise ValueError(f'find_lines: Not all objects in the iterable are callables: {", ".join(non_callable)}')
     #
-    # Handle single callable
-    elif callable(search_spec):
-        result = _find_lines(doc_lines, search_spec, **passthru_opts)
-        if len(result) == 0:
-            return None
-        return result
-    else:
+    # Handle search_spec that is neither iterable nor callable.
+    elif not callable(search_spec):
         raise ValueError(f'find_lines: Supplied object is {type(search_spec)}; allowed objects are callables '
                          'or list of callables. Are you looking for find_lines_regex()?')
-
+    #
+    # Process the final search_spec if it was iterable, or the search_spec itself if it was a single callable.
+    result = _find_lines(doc_lines, search_spec, **passthru_opts)
+    if len(result) == 0:
+        return None
+    return result
 
 def find_lines_regex(doc_lines: List[DocumentLine],
                      regex_spec: str | re.Pattern | Iterable[str | re.Pattern],
@@ -160,22 +160,24 @@ def find_lines_regex(doc_lines: List[DocumentLine],
             Raised if regex_spec is not a str, re.Pattern, or iterable. Also raised if group and convert_result are set
             together.
     """
-    def is_valid_re_term(x):
+    def is_re_term(x):
         return isinstance(x, str) or isinstance(x, re.Pattern)
+    def is_re_iterable(x):
+        return isiterable(x) and not is_re_term(x)
     #
     # Map regex_spec to callables.
-    if isiterable(regex_spec) and all(is_valid_re_term(i) for i in regex_spec):
+    if is_re_iterable(regex_spec) and all(is_re_term(i) for i in regex_spec):
         regex_spec = [i for i in regex_spec]
         search_spec = [re_search_cb(i) for i in regex_spec]
         final_term = regex_spec[-1]
     #
     # Handle iterables that don't have all strings.
-    elif isiterable(regex_spec):
-        non_str = [str((i, type(i))) for i in regex_spec if not is_valid_re_term(i)]
+    elif is_re_iterable(regex_spec):
+        non_str = [str((i, type(i))) for i in regex_spec if not is_re_term(i)]
         raise ValueError(f'find_lines: Not all objects in the iterable are valid regex terms: {", ".join(non_str)}')
     #
     # Handle str or re.Pattern.
-    elif is_valid_re_term(regex_spec):
+    elif is_re_term(regex_spec):
         search_spec = re_search_cb(regex_spec)
         final_term = regex_spec
     else:
