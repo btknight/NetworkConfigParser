@@ -145,27 +145,41 @@ class DocumentLine(object):
 
     def family(self,
                include_ancestors: bool = True,
+               include_self: bool = True,
                include_children: bool = True,
                include_all_descendants: bool = True) -> List[object]:
         """Provides a list of family objects, optionally including ancestors, itself, children, and all descendants.
 
         Args:
             include_ancestors:
-                A bool indicating whether to include ancestors. Default is True.
+                If False, omits all ancestors. Default is True.
+            include_self:
+                If False, omits itself from the result. Default is True.
             include_children:
-                A bool indicating whether to include immediate children of this object. Default is True.
+                If False, omits immediate children. Default is True. Setting this to False sets include_all_descendants
+                to False as well.
             include_all_descendants:
-                A bool indicating whether to include grandchildren, great-grandchildren, etc of this object. Default is
-                True.
+                If False, omits grandchildren, great-grandchildren, etc. Default is True. Setting this to True sets
+                include_children to True as well.
 
         Returns:
             List of DocumentNode objects in order from top-level ancestors, to the object itself, to all descendants,
             in the same order as they were read by the parser.
         """
+        #
+        # If immediate children are not to be included, do not include all descendants.
+        if not include_children:
+            include_all_descendants = False
+        #
+        # If all descendants are to be returned, include immediate children as well.
+        if include_all_descendants:
+            include_children = True
+        #
         family = []
         if include_ancestors:
             family.extend(self.ancestors)
-        family.append(self)
+        if include_self:
+            family.append(self)
         if include_children and not include_all_descendants:
             family.extend(self.children)
         elif include_children and include_all_descendants:
