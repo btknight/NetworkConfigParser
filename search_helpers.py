@@ -3,13 +3,20 @@ from operator import attrgetter
 import re
 from typing import List, Callable, Iterable, Any, Tuple
 
+def identity(x: Any) -> Any:
+    """Identity function. Returns the first argument unmodified."""
+    return x
+
 def find_lines(doc_lines: List[DocumentLine],
                search_spec: Callable[[DocumentLine], bool] | Iterable[Callable[[DocumentLine], bool]],
                recurse_search: bool = True,
+               convert_result: Callable[[DocumentLine], Any] = identity,
+               convert_family: Callable[[DocumentLine], Any] = identity,
+               flatten_family: bool = True,
                suppress_common_ancestors: bool = True,
                include_ancestors: bool = False,
                include_children: bool = False,
-               include_all_descendants: bool = False) -> List[DocumentLine] | None:
+               include_all_descendants: bool = False) -> List[DocumentLine] | List[List[DocumentLine]] | None:
     """Finds lines that match a supplied callback function or functions.
 
     Optionally, returns the ancestors, immediate children, or all descendants of the matches.
@@ -23,9 +30,20 @@ def find_lines(doc_lines: List[DocumentLine],
         recurse_search:
             If set to False, and search_spec is an iterable, only immediate children of the previous match
             will be searched for the next term. If True, all descendants of the previous match will be searched.
+        convert_result:
+            If specified, run the supplied function to convert matched lines in the output list. Default is an identity
+            function.
+        convert_family:
+            If specified, and an include_* parameter is set to True, run the supplied function to convert family lines
+            in the output list. Default is an identity function.
+        flatten_family:
+            If False, returns a list of lists where the second order list contains the match, plus any family lines if
+            specified. If True, the list of matches and any family members is flattened into a single list.
+            Default is True.
         suppress_common_ancestors:
-            If this and include_ancestors is True, common ancestors of adjacent matches will not be repeated. False if
-            common ancestors should be repeated. See documentation for common_line_suppressor() for more info.
+            If flatten_family is True and include_ancestors is True, setting this to True ensures common ancestors of
+            adjacent matches will not be repeated. If False, common ancestors will be repeated.
+            See documentation for common_line_suppressor() for more info.
         include_ancestors:
             Set this to True if the ancestors of the matching object should be returned. Default is False.
         include_children:
@@ -37,13 +55,15 @@ def find_lines(doc_lines: List[DocumentLine],
 
     Returns:
         A list of matching DocumentLines, their ancestors and their descendants, ordered in the same way they were read
-        from the document. If no matches were found, returns None.
+        from the document. If flatten_family is False, returns a list of lists instead. If no matches were found,
+        returns None.
 
     Raises:
         ValueError:
             Raised if search_spec is not an iterable or callable.
         """
-    family_options = {k: v for k, v in locals().items() if k.startswith('include_')}
+    passthru_names = ['convert_', 'suppress_', 'include_', 'flatten_']
+    passthru_opts = {k: v for k, v in locals().items() if any(k.startswith(opt) for opt in passthru_names)}
     #
     # Handle the case where search_spec is an iterable.
     if isiterable(search_spec):
@@ -67,7 +87,7 @@ def find_lines(doc_lines: List[DocumentLine],
         raise ValueError(f'find_lines: Supplied object is {type(search_spec)}; allowed objects are callables '
                          'or list of callables')
     #
-    result = _find_lines(doc_lines, search_spec, suppress_common_ancestors, **family_options)
+    result = _find_lines(doc_lines, search_spec, **passthru_opts)
     if len(result) == 0:
         return None
     return result
@@ -76,10 +96,14 @@ def find_lines(doc_lines: List[DocumentLine],
 def find_lines_regex(doc_lines: List[DocumentLine],
                      regex_spec: str | re.Pattern | Iterable[str | re.Pattern],
                      recurse_search: bool = True,
+                     group: int | None = None,
+                     convert_result: Callable[[DocumentLine], Any] = identity,
+                     convert_family: Callable[[DocumentLine], Any] = identity,
+                     flatten_family: bool = True,
                      suppress_common_ancestors: bool = True,
                      include_ancestors: bool = False,
                      include_children: bool = False,
-                     include_all_descendants: bool = False) -> List[DocumentLine] | None:
+                     include_all_descendants: bool = False) -> List[DocumentLine] | List[List[DocumentLine]] | None:
     """Finds lines that match a regular expression.
 
     Optionally, returns the ancestors, immediate children, or all descendants of the matches.
@@ -93,9 +117,23 @@ def find_lines_regex(doc_lines: List[DocumentLine],
         recurse_search:
             If set to False, and regex_spec is an iterable, only immediate children of the previous match
             will be searched for the next term. If True, all descendants of the previous match will be searched.
+        group:
+            If specified, returns the string matching the regular expression group from the re.Match object. Default is
+            None.
+        convert_result:
+            If specified, run the supplied function to convert matched lines in the output list. Default is an identity
+            function.
+        convert_family:
+            If specified, and an include_* parameter is set to True, run the supplied function to convert family lines
+            in the output list. Default is an identity function.
+        flatten_family:
+            If False, returns a list of lists where the second order list contains the match, plus any family lines if
+            specified. If True, the list of matches and any family members is flattened into a single list.
+            Default is True.
         suppress_common_ancestors:
-            A bool set to True if common ancestors of adjacent objects should not be repeated. False if common ancestors
-            should be repeated.
+            If flatten_family is True and include_ancestors is True, setting this to True ensures common ancestors of
+            adjacent matches will not be repeated. If False, common ancestors will be repeated.
+            See documentation for common_line_suppressor() for more info.
         include_ancestors:
             Set this to True if the ancestors of the matching object should be returned. Default is False.
         include_children:
@@ -107,30 +145,46 @@ def find_lines_regex(doc_lines: List[DocumentLine],
 
     Returns:
         A list of matching DocumentLines, their ancestors and their descendants, ordered in the same way they were read
-        from the document. If not matches were found, returns None.
+        from the document. If flatten_family is False, returns a list of lists instead. If no matches were found,
+        returns None.
 
     Raises:
         ValueError:
             Raised if regex_spec is not a str, re.Pattern, or iterable.
     """
-    family_options = {k: v for k, v in locals().items() if k.startswith('include_')}
     #
     # Map regex_spec to callables.
     if isinstance(regex_spec, str) or isinstance(regex_spec, re.Pattern):
         search_spec = re_search_cb(regex_spec)
+        final_term = regex_spec
     elif isiterable(regex_spec):
+        regex_spec = [i for i in regex_spec]
         search_spec = [re_search_cb(i) for i in regex_spec]
+        final_term = regex_spec[-1]
     else:
         raise ValueError(f'find_lines_regex: Supplied object is {type(regex_spec)}; allowed objects are str, '
                          're.Pattern, or List[str | re.Pattern]')
     #
+    # Deal with group and convert_result.
+    if group and not convert_result == identity:
+        raise ValueError(f'find_lines_regex: both group and convert_result are specified - use one or the other')
+    elif group:
+        convert_result = lambda x: re_search_dl(final_term, x).group(group)
+    #
+    # Gather passthru options.
+    passthru_names = ['recurse_', 'convert_', 'suppress_', 'include_', 'flatten_']
+    passthru_opts = {k: v for k, v in locals().items() if any(k.startswith(opt) for opt in passthru_names)}
+    #
     # Call find_lines() to perform the matching.
-    return find_lines(doc_lines, search_spec, recurse_search, suppress_common_ancestors, **family_options)
+    return find_lines(doc_lines, search_spec, **passthru_opts)
 
 def _find_lines(doc_lines: List[DocumentLine],
                 search_fn: Callable[[DocumentLine], bool],
+                convert_result: Callable[[DocumentLine], Any] = identity,
+                convert_family: Callable[[DocumentLine], Any] = identity,
+                flatten_family: bool = True,
                 suppress_common_ancestors: bool = True,
-                **family_options) -> List[DocumentLine]:
+                **family_options) -> List[DocumentLine] | List[List[DocumentLine]]:
     """Finds lines that match a supplied callback function.
 
     Args:
@@ -138,8 +192,20 @@ def _find_lines(doc_lines: List[DocumentLine],
             A list of DocumentLines to search.
         search_fn:
             A function that takes a DocumentLine as input and returns a bool indicating a match.
+        convert_result:
+            If specified, run the supplied function to convert matched lines in the output list. Default is an identity
+            function.
+        convert_family:
+            If specified, and an include_* parameter is set to True, run the supplied function to convert family lines
+            in the output list. Default is an identity function.
+        flatten_family:
+            If False, returns a list of lists where the second order list contains the match, plus any family lines if
+            specified. If True, the list of matches and any family members is flattened into a single list.
+            Default is True.
         suppress_common_ancestors:
-            Set this to False if common ancestors of adjacent objects will be repeated in the result. Default is True.
+            If flatten_family is True and include_ancestors is True, setting this to True ensures common ancestors of
+            adjacent matches will not be repeated. If False, common ancestors will be repeated.
+            See documentation for common_line_suppressor() for more info.
         family_options:
             A set of kwargs that are passed to the DocumentLine.family() function. Permitted parameters to family():
             include_ancestors:
@@ -153,11 +219,11 @@ def _find_lines(doc_lines: List[DocumentLine],
 
     Returns:
         A list of matching DocumentLines, their ancestors and their descendants, ordered in the same way they were read
-        from the document.
+        from the document. If flatten_family is False, returns a list of lists instead.
         """
     #
     # Identity function for the case suppress_common_ancestors == False.
-    s = lambda x: x
+    s = identity
     #
     # If suppress_common_ancestors == True, get a closure function to help suppress common lines.
     if suppress_common_ancestors:
@@ -166,12 +232,21 @@ def _find_lines(doc_lines: List[DocumentLine],
     # Perform the comparison.
     matches = [i for i in doc_lines if search_fn(i)]
     #
-    # If no include_ options to DocumentLine.family() are specified, we are done.
+    # If no include_ options to DocumentLine.family() are specified, return the matches, converting the result.
     if not any(family_options.values()):
-        return matches
+        return [convert_result(i) for i in matches]
+    #
+    # Closure to apply conversions.
+    def convert_line(o: DocumentLine) -> Any:
+        if o in matches:
+            return convert_result(o)
+        return convert_family(o)
     #
     # Otherwise, perform another comprehension to get the familial lines added to the result.
-    return [j for i in matches for j in s(i.family(**family_options))]
+    if flatten_family:
+        return [convert_line(j) for i in matches for j in s(i.family(**family_options))]
+    else:
+        return [[convert_line(j) for j in i.family(**family_options)] for i in matches]
 
 def re_search_dl(regex: str | re.Pattern, dl_object: DocumentLine, *flags) -> re.Match | None:
     """Helper function to perform regex searches on DocumentLine objects.
@@ -397,8 +472,7 @@ def common_line_suppressor() -> Callable[[List[DocumentLine]], List[DocumentLine
 
         The below suppresses those two repeated lines.
 
-        s = common_ancestor_suppressor()
-        nbr_config_lines = [j for i in bgp_nbr_lines for j in s(i.family())]
+        s = common_ancestor_suppressor() nbr_config_lines = [j for i in bgp_nbr_lines for j in s(i.family())]
 
     Returns:
         A function to be used in a list comprehension that suppresses adjacent common lines.
