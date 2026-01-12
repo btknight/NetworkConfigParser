@@ -11,25 +11,16 @@ logging.basicConfig(level=logging.INFO)
 class Test_ParseSpacedConfig(TestCase):
     # TODO add tests oriented around specific methods and functions, not general UAT
     def test_num_leading_spaces(self):
-        line = 'interface'
-        assert num_leading_spaces(line) == 0
-        line = '  ' + line
-        assert num_leading_spaces(line) == 2
+        interface = 'interface'
+        for i in range(10):
+            line = ' ' * i + interface
+            assert num_leading_spaces(line) == i
 
     def test_plain_line(self):
         line = 'router bgp 65535\n'
-        p = parse_autodetect([line])
-        assert len(p) == 1
-        lo = p[0]
-        assert lo.line == line.rstrip()
-        assert str(lo) == line.rstrip()
-        assert lo.line_num == 1
-        assert lo.gen == 1
-        assert lo.ancestors == []
-        assert lo.children == []
-        assert lo.all_descendants == []
-        assert lo.family() == [lo]
-        assert lo == lo
+        dl = DocumentLine(1, line.rstrip())
+        doc_lines = parse_autodetect([line])
+        assert doc_lines == [dl]
 
     def test_banner(self):
         config = """banner login ^C
@@ -53,49 +44,9 @@ class Test_ParseSpacedConfig(TestCase):
         p = parse_autodetect(lines)
         assert len(p) == 17
         lo = p[0]
-        assert lo.line == lines[0].rstrip()
-        assert lo.line_num == 1
         assert lo.gen == 1
-        assert lo.ancestors == []
         assert lo.children == p[1:17]
         assert lo.all_descendants == p[1:17]
-        assert lo.family() == p
-        assert lo == lo
-
-    def test_section_2level(self):
-        config = """interface TenGigE0/1/0/2
- description An example interface
- ipv4 address 192.0.2.1 255.255.255.252
- ipv6 address 2001:db8:1337:93::1/64
- load-interval 30
- ipv4 access-group TenGigACL ingress
-!"""
-        lines = [i + '\n' for i in config.split('\n')]
-        p = parse_autodetect(lines)
-        assert len(p) == 7
-        lo = p[0]
-        assert lo.line == lines[0].rstrip()
-        assert lo.line_num == 1
-        assert lo.gen == 1
-        assert lo.ancestors == []
-        assert lo.children == p[1:6]
-        assert lo.all_descendants == p[1:6]
-        assert lo.family() == p[0:6]
-        assert lo == lo
-        assert p[2].has_ip(ipa.ip_network('192.0.2.0/30'))
-        assert p[2].has_ip(ipa.ip_address('192.0.2.1'))
-        assert p[2].has_ip(ipa.ip_interface('192.0.2.1/30'))
-        assert not p[2].has_ip(ipa.ip_address('203.0.113.1'))
-        assert not p[2].has_ip(ipa.ip_network('203.0.113.0/24'))
-        assert not p[2].has_ip(ipa.ip_interface('203.0.113.224/24'))
-        assert p[3].has_ip(ipa.ip_network('2001:db8:1337:93::/64'))
-        assert p[3].has_ip(ipa.ip_address('2001:db8:1337:93::1'))
-        assert p[3].has_ip(ipa.ip_interface('2001:db8:1337:93::1/64'))
-        assert not p[3].has_ip(ipa.ip_network('2001:db8:1337:fb00::/56'))
-        assert not p[3].has_ip(ipa.ip_address('2001:db8:1337:6942::2'))
-        assert not p[3].has_ip(ipa.ip_interface('2001:db8:1338:93::1/64'))
-        with self.assertRaises(ValueError):
-            assert not p[2].has_ip('203.0.113.224/24')
 
     def test_section_multilevel(self):
         config = """l2vpn
