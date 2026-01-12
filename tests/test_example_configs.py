@@ -67,12 +67,11 @@ mpls ldp
 """
         doc_lines = parse_from_str(config)
         #intf_lines = find_lines(doc_lines, lambda o: 'TenGigE0/1/0/1' in o, include_ancestors=True)
-        intf_lines = find_lines_regex(doc_lines, 'TenGigE0/1/0/1', include_ancestors=True)
+        intf_lines = find_lines(doc_lines, 'TenGigE0/1/0/1', include_ancestors=True)
         pprint(intf_lines)
-        router_isis_intf_lines = find_lines_regex(doc_lines, ('router isis ', 'interface '))
+        #router_isis_intf_lines = find_lines(doc_lines, ('router isis ', 'interface '))
+        router_isis_intf_lines = find_lines(doc_lines, ('router isis ', 'address-family ipv4 '), include_ancestors=True)
         pprint(router_isis_intf_lines)
-        #router_isis_intf_lines = find_lines_regex(doc_lines, ('router isis ', 'interface ', 'address-family ipv4 '), include_ancestors=True)
-        #pprint(router_isis_intf_lines)
 
 
     def test_str_methods(self):
