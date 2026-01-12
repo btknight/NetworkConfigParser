@@ -122,9 +122,6 @@ def find_lines(doc_lines: List[DocumentLine],
         ValueError:
             Raised if search_spec is not an iterable or callable.
     """
-    passthru_names = ['convert_', 'suppress_', 'include_', 'flatten_']
-    passthru_opts = {k: v for k, v in locals().items() if any(k.startswith(opt) for opt in passthru_names)}
-    #
     def final_term():
         if is_iterable_search_term(search_spec):
             return search_spec[-1]
@@ -134,15 +131,20 @@ def find_lines(doc_lines: List[DocumentLine],
     if regex_group:
         #
         # Get final term of search_spec if it is an iterable
-        if not is_regex(final_term()):
+        ft = final_term()
+        if not is_regex(ft):
             final_term_of = 'final term of ' if is_iterable_search_term(search_spec) else ''
-            raise ValueError(f'find_lines: {final_term_of}search_spec is not a regular expression: {type(final_term())}')
+            raise ValueError(f'find_lines: {final_term_of}search_spec is not a regular expression: {type(ft)}')
         elif not convert_match == identity:
             raise ValueError(f'find_lines: both group and convert_match are specified - use one or the other')
-        convert_match = lambda x: re_search_dl(final_term(), x, regex_flags).group(regex_group)
+        convert_match = lambda x: re_search_dl(ft, x, regex_flags).group(regex_group)
     #
     # Convert search_term to a callable or to a list of callables.
     search_spec = convert_search_spec_to_cb(search_spec, regex_flags)
+    #
+    # Gather passthrough options.
+    passthru_names = ['convert_', 'suppress_', 'include_', 'flatten_']
+    passthru_opts = {k: v for k, v in locals().items() if any(k.startswith(opt) for opt in passthru_names)}
     #
     # Iterate over search_spec.
     if is_iterable_search_term(search_spec):
@@ -270,7 +272,7 @@ def re_search_dl(regex: str | re.Pattern,
         return regex.search(str(dl_object))
     elif isinstance(regex, str):
         return re.search(regex, str(dl_object), flags)
-    raise ValueError('re_search_dl: Supplied regex object {type(regex)} is not supported')
+    raise ValueError(f're_search_dl: Supplied regex object {type(regex)} is not supported')
 
 def re_search_cb(regex: str | re.Pattern, flags) -> Callable[[DocumentLine], bool]:
     """Helper function to provide an re.search callable suitable for feeding to find_lines().

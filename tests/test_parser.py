@@ -193,7 +193,6 @@ route-policy DEFAULT-ONLY
 
     def test_example_arista(self):
         p = parse_from_file('example-arista.txt')
-        #print(f'test_example_arista: len(p) = {len(p)}')
         assert len(p) == 114
         gen_distribution = defaultdict(lambda: 0)
         for dl in p:

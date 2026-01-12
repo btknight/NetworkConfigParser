@@ -24,16 +24,46 @@ class TestSearchHelpers(TestCase):
         cls.test_dummy = Dummy()
 
     def test_find_lines(self):
-        pass
-        # TODO case single search_spec regex and regex_group is 1
-        # TODO case single search_spec cb and regex_group is 1
-        # TODO case single search_spec dummy_object and regex_group is 1
-        # TODO case search_spec iterable with final term regex and regex_group is 1
-        # TODO case search_spec iterable with final term cb and regex_group is 1
-        # TODO case search_spec iterable with final term dummy_object and regex_group is 1
-        # TODO case group is 1, search_spec regex, and convert_result is cb
-        # TODO case recurse_search is False, search_spec matches chain
-        # TODO case recurse_search is False, search_spec does not match chain
+        #
+        # case single search_spec regex and regex_group is 1
+        result = find_lines(self.doc_lines, r'group (\S+)', regex_group=1)
+        assert result == ['COMMON', 'UNCOMMON']
+        #
+        # case single search_spec cb and regex_group is 1
+        with self.assertRaises(ValueError):
+            find_lines(self.doc_lines, lambda x: 'group' in x, regex_group=1)
+        #
+        # case single search_spec dummy_object and regex_group is 1
+        with self.assertRaises(ValueError):
+            find_lines(self.doc_lines, self.test_dummy, regex_group=1)
+        #
+        # case search_spec iterable with final term regex and regex_group is 1
+        result = find_lines(self.doc_lines, [lambda x: 'vpn' in x, r'group (\S+)'], regex_group=1)
+        assert result == ['COMMON', 'UNCOMMON']
+        #
+        # case search_spec iterable with final term cb and regex_group is 1
+        with self.assertRaises(ValueError):
+            find_lines(self.doc_lines, [lambda x: 'vpn' in x, lambda x: 'group' in x], regex_group=1)
+        #
+        # case search_spec iterable with final term dummy_object and regex_group is 1
+        with self.assertRaises(ValueError):
+            find_lines(self.doc_lines, [lambda x: 'vpn' in x, self.test_dummy], regex_group=1)
+        #
+        # case group is 1, search_spec regex, and convert_result is cb
+        with self.assertRaises(ValueError):
+            find_lines(self.doc_lines, [lambda x: 'vpn' in x, r'group (\S+)'], regex_group=1, convert_match=lambda x: str(x))
+        #
+        # case recurse_search is True, search_spec matches 1st and 3rd gen
+        result = find_lines(self.doc_lines, ['l2vpn', 'domain'], recurse_search=True)
+        assert result == self.doc_lines[2:4] + self.doc_lines[5:7]
+        #
+        # case recurse_search is False, search_spec matches chain
+        result = find_lines(self.doc_lines, ['l2vpn', 'group', 'domain'], recurse_search=False)
+        assert result == self.doc_lines[2:4] + self.doc_lines[5:7]
+        #
+        # case recurse_search is False, search_spec does not match chain
+        result = find_lines(self.doc_lines, ['l2vpn', 'domain'], recurse_search=False)
+        assert result is None
 
     def test_convert_search_spec_to_cb(self):
         #
