@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 class TestSearch(TestCase):
     def test_notebook(self):
         config = """interface TenGigE0/1/0/1
- description Backbone Circuit to North Pudsey
+ description Backbone Circuit to North Pudsey from Metric Networks
  cdp
  mtu 2060
  ipv4 address 192.0.2.101 255.255.255.252
@@ -20,7 +20,7 @@ interface Loopback10
  description Router ID
  ipv4 address 192.0.2.1 255.255.255.255
 !
-router isis coreIGP
+router isis IGP
  net 49.0000.1920.0000.2001.00
  log adjacency changes
  address-family ipv4 unicast
@@ -64,8 +64,12 @@ mpls ldp
  !
  interface TenGigE0/1/0/1
  !
+router static
+ 0.0.0.0/0 192.0.2.102
+ 203.0.113.100/30 192.0.2.102
 """
         doc_lines = parse_from_str(config)
+        pprint(doc_lines[-3].ip_nets)
         #intf_lines = find_lines(doc_lines, lambda o: 'TenGigE0/1/0/1' in o, include_ancestors=True)
         intf_lines = find_lines(doc_lines, 'TenGigE0/1/0/1', include_ancestors=True)
         #router_isis_intf_lines = find_lines(doc_lines, ('router isis ', 'interface '))
