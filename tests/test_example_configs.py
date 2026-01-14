@@ -69,7 +69,7 @@ router static
  203.0.113.100/30 192.0.2.102
 """
         doc_lines = parse_from_str(config)
-        pprint(doc_lines[-3].ip_nets)
+        #pprint(doc_lines[-3].ip_nets)
         #intf_lines = find_lines(doc_lines, lambda o: 'TenGigE0/1/0/1' in o, include_ancestors=True)
         intf_lines = find_lines(doc_lines, 'TenGigE0/1/0/1', include_ancestors=True)
         #router_isis_intf_lines = find_lines(doc_lines, ('router isis ', 'interface '))

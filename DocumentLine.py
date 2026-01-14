@@ -1,5 +1,6 @@
 """Defines the DocumentLine object, a node in a familial tree describing a structured document layout."""
 import ipaddress as ipa
+from operator import attrgetter
 import logging
 import re
 from typing import Optional, List, Callable, Iterator, Tuple
@@ -142,6 +143,65 @@ class DocumentLine(object):
             descendants.append(child)
             descendants.extend(child.all_descendants)
         return descendants
+
+    def re_match(self, pattern: str | re.Pattern, flags: int | re.RegexFlag = 0):
+        """Runs a regular expression match on the document line.
+
+        Equivalent to running re.match(pattern, self.line, flags). Handles compiled patterns as well as regular
+        expression strings.
+
+        Args:
+            pattern:
+                Regular expression to match, as a String or re.Pattern object
+            flags:
+                Flags to include to the call to re.match. Ignored if an re.Pattern is supplied.
+
+        Returns:
+            Result of call to re.match or pattern.match: re.Match object or None if no match
+        """
+        return self._re_dispatch('match', pattern, flags)
+
+    def re_search(self, pattern: str | re.Pattern, flags: int | re.RegexFlag = 0):
+        """Runs a regular expression search on the document line.
+
+        Equivalent to running re.search(pattern, self.line, flags). Handles compiled patterns as well as regular
+        expression strings.
+
+        Args:
+            pattern:
+                Regular expression to search, as a String or re.Pattern object
+            flags:
+                Flags to include to the call to re.search. Ignored if an re.Pattern is supplied.
+
+        Returns:
+            Result of call to re.search or pattern.search: re.Match object or None if no search
+        """
+        return self._re_dispatch('search', pattern, flags)
+
+    def re_fullmatch(self, pattern: str | re.Pattern, flags: int | re.RegexFlag = 0):
+        """Runs a regular expression fullmatch on the document line.
+
+        Equivalent to running re.fullmatch(pattern, self.line, flags). Handles compiled patterns as well as regular
+        expression strings.
+
+        Args:
+            pattern:
+                Regular expression to fullmatch, as a String or re.Pattern object
+            flags:
+                Flags to include to the call to re.fullmatch. Ignored if an re.Pattern is supplied.
+
+        Returns:
+            Result of call to re.fullmatch or pattern.fullmatch: re.Match object or None if no fullmatch
+        """
+        return self._re_dispatch('fullmatch', pattern, flags)
+
+    def _re_dispatch(self, method_name: str, pattern: str | re.Pattern, /, *args, **kwargs):
+        m = attrgetter(method_name)
+        if isinstance(pattern, re.Pattern):
+            return m(pattern)(self.line, *args, **kwargs)
+        elif isinstance(pattern, str):
+            return m(re)(pattern, self.line, *args, **kwargs)
+        raise ValueError(f're_search: pattern type {type(pattern)} is not supported')
 
     def family(self,
                include_ancestors: bool = True,

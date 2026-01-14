@@ -1,5 +1,6 @@
 from DocumentLine import DocumentLine
 import ipaddress as ipa
+import re
 from pprint import pprint
 import unittest
 
@@ -291,3 +292,38 @@ class TestDocumentLine(unittest.TestCase):
         assert 'gen=2' in r
         assert 'line_num=4' in r
         assert lines[3] in r
+
+    def test_immutability(self):
+        lines = ['interface GigabitEthernet0/0/0',
+                 ' description Gig0/0/0',
+                 '  description-modifier foobar',
+                 ' ip address 192.0.2.103 192.0.2.254']
+        dl_list = [DocumentLine(1, lines[0]), DocumentLine(2, lines[1])]
+        with self.assertRaises(AttributeError):
+            dl_list[0].line = 'foobr'
+        with self.assertRaises(AttributeError):
+            dl_list[0].line_num = 31337
+        with self.assertRaises(AttributeError):
+            dl_list[0].ip_addrs = {}
+        with self.assertRaises(AttributeError):
+            dl_list[0].ip_nets = {}
+
+    def test_re_methods(self):
+        line = 'router pythonprotocol GRAIL'
+        dl = DocumentLine(1, line)
+        r_valid = re.compile('grail', re.IGNORECASE)
+        r_invalid = re.compile('0/0/0')
+        assert isinstance(dl.re_search(r_valid), re.Match)
+        assert dl.re_search(r_invalid, re.IGNORECASE) is None
+        assert isinstance(dl.re_search('python'), re.Match)
+        assert dl.re_search('midget') is None
+        with self.assertRaises(ValueError):
+            dl.re_search(None)
+        assert isinstance(dl.re_match('router'), re.Match)
+        assert dl.re_match('python') is None
+        with self.assertRaises(ValueError):
+            dl.re_match(None)
+        assert isinstance(dl.re_fullmatch('router python.*'), re.Match)
+        assert dl.re_fullmatch('router python') is None
+        with self.assertRaises(ValueError):
+            dl.re_fullmatch(None)

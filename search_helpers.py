@@ -122,6 +122,9 @@ def find_lines(doc_lines: List[DocumentLine],
         ValueError:
             Raised if search_spec is not an iterable or callable.
     """
+    #
+    # Technically, this function only handles marshaling search terms to callbacks, and executing an iterable of
+    # callbacks. find_lines_with_cb() handles the actual search execution for each term.
     def final_term():
         if is_iterable_search_term(search_spec):
             return search_spec[-1]
@@ -137,7 +140,7 @@ def find_lines(doc_lines: List[DocumentLine],
             raise ValueError(f'find_lines: {final_term_of}search_spec is not a regular expression: {type(ft)}')
         elif not convert_match == identity:
             raise ValueError(f'find_lines: both group and convert_match are specified - use one or the other')
-        convert_match = lambda x: re_search_dl(ft, x, regex_flags).group(regex_group)
+        convert_match = lambda x: x.re_search(ft, regex_flags).group(regex_group)
     #
     # Convert search_term to a callable or to a list of callables.
     search_spec = convert_search_spec_to_cb(search_spec, regex_flags)
@@ -177,7 +180,8 @@ def find_lines_with_cb(doc_lines: List[DocumentLine],
     """Finds lines that match a single callback function.
 
     Called by the more user-friendly function find_lines() to execute a search for a single term. Optionally returns
-    ancestors and/or descendants of the match, converts the match or the
+    ancestors and/or descendants of the match. Optionally converts the match itself or the family members to a different
+    object.
 
     Args:
         doc_lines (List[DocumentLine]):
@@ -231,7 +235,8 @@ def find_lines_with_cb(doc_lines: List[DocumentLine],
     # Perform the comparison.
     matches = [i for i in doc_lines if search_fn(i)]
     #
-    # If no include_ options to DocumentLine.family() are specified, return the matches, converting the result.
+    # If all include_ options to DocumentLine.family() are False, no family inclusions are specified. Return the
+    # matches, converting the result.
     if not any(passthru_opts.values()):
         if flatten_family:
             return [convert_match(i) for i in matches]
@@ -250,31 +255,7 @@ def find_lines_with_cb(doc_lines: List[DocumentLine],
         return [convert_line(j) for i in matches for j in s(i.family(**passthru_opts))]
     return [[convert_line(j) for j in i.family(**passthru_opts)] for i in matches]
 
-def re_search_dl(regex: str | re.Pattern,
-                 dl_object: DocumentLine,
-                 flags: int | re.RegexFlag = 0) -> re.Match | None:
-    """Helper function to perform regex searches on DocumentLine objects.
-
-    Converts the DocumentLine object to a str before running re.search.
-
-    Args:
-        regex:
-            The str or compiled regular expression to pass to re.search.
-        dl_object:
-            The DocumentLine to search.
-        flags:
-            Optional flags to pass to re.search.
-
-    Returns:
-        The re.Match result from re.search.
-    """
-    if isinstance(regex, re.Pattern):
-        return regex.search(str(dl_object))
-    elif isinstance(regex, str):
-        return re.search(regex, str(dl_object), flags)
-    raise ValueError(f're_search_dl: Supplied regex object {type(regex)} is not supported')
-
-def re_search_cb(regex: str | re.Pattern, flags) -> Callable[[DocumentLine], bool]:
+def re_search_cb(regex: str | re.Pattern, flags: int | re.RegexFlag = 0) -> Callable[[DocumentLine], bool]:
     """Helper function to provide an re.search callable suitable for feeding to find_lines().
 
     Args:
@@ -284,9 +265,9 @@ def re_search_cb(regex: str | re.Pattern, flags) -> Callable[[DocumentLine], boo
             Optional flags to pass to re.search.
 
     Returns:
-        A callable that takes a DocumentLine as an argument and returns a bool indicating a match.
+        A callable that takes a DocumentLine as an argument and returns the result of re.search on the object's line
     """
-    return lambda o: re_search_dl(regex, o, flags) is not None
+    return lambda o: o.re_search(regex, flags)
 
 def parent_child_cb(parent_spec: str | re.Pattern | Callable[[DocumentLine], bool],
                     child_spec: str | re.Pattern | Callable[[DocumentLine], bool],
@@ -327,7 +308,8 @@ def parent_child_cb(parent_spec: str | re.Pattern | Callable[[DocumentLine], boo
         child_spec:
             str or re.Pattern to search in the child lines of the parent.
         regex_flags:
-            Flags to pass to re.search
+            Flags to pass to re.search. Both parent_spec and child_spec are affected. If different flags are desired
+            for each term, use re.compile() to provide an re.Pattern object.
         recurse:
             True if all descendants are to be searched, False if only immediate children are to be searched.
         negative_child_match:
@@ -359,8 +341,8 @@ def parent_child_cb(parent_spec: str | re.Pattern | Callable[[DocumentLine], boo
     #
     # Search function to pass to find_lines()
     def search_fn(o: DocumentLine) -> bool:
-        parent_match = re_search_dl(parent_spec, o, regex_flags) is not None
-        child_match = any(re_search_dl(child_spec, c, regex_flags) is not None for c in child_getter(o))
+        parent_match = o.re_search(parent_spec, regex_flags) is not None
+        child_match = any(c.re_search(child_spec, regex_flags) is not None for c in child_getter(o))
         if negative_child_match:
             child_match = not child_match
         return parent_match and child_match

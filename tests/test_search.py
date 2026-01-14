@@ -178,19 +178,19 @@ class TestSearchHelpers(TestCase):
         result = find_lines_with_cb(self.doc_lines, lambda x: 'l2vpn' in x, include_all_descendants=True)
         assert result == self.doc_lines
 
-    def test_re_search_dl(self):
+    def test_re_search(self):
         test_objs = [
             DocumentLine(1, 'Green Midget Cafe'),
             DocumentLine(2, 'Bletchley Park')
         ]
         #
         # case regex is str
-        assert re_search_dl('MID(GET)', test_objs[0], re.IGNORECASE).group(1) == 'get'
-        assert not re_search_dl('MID(GET)', test_objs[1], re.IGNORECASE)
+        assert test_objs[0].re_search('MID(GET)', re.IGNORECASE).group(1) == 'get'
+        assert not test_objs[1].re_search('MID(GET)', re.IGNORECASE)
         #
         # case regex is re.Pattern
-        assert re_search_dl(self.test_pattern, self.doc_lines[2])
-        assert not re_search_dl(self.test_pattern, self.doc_lines[1])
+        assert self.doc_lines[2].re_search(self.test_pattern)
+        assert not self.doc_lines[1].re_search(self.test_pattern)
 
     def test_re_search_cb(self):
         cb = re_search_cb(self.test_str, re.IGNORECASE)
