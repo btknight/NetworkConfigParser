@@ -25,23 +25,36 @@ class DocumentLine(object):
         A str containing the text of the line.
     line_num:
         int line number from the original document.
-    parent:
-        The parent DocumentLine object for this object, otherwise None if there is this is a top-level object.
-    children:
-        A list of DocumentLine objects that are this object's children.
     gen:
         An int, starting from 1, indicating the generation level of the object. 1 indicates a top-level object,
         2 indicates a child of a top-level object, 3 is a grandchild, and so on.
     ancestors:
         A list of DocumentLine objects of this object's ancestors, sorted from top-level object to this object's parent.
+    parent:
+        The parent DocumentLine object for this object, otherwise None if there is this is a top-level object.
+    children:
+        A list of DocumentLine objects that are this object's children.
     all_descendants:
         A list of DocumentLine objects of all children, grandchildren, great-grandchildren, etc. of this object,
         ordered in the sequence in which they appear in the configuration.
+    ip_addrs:
+        A set of ipaddress.IPv4Address and ipaddress.IPv6Addresses found and parsed in this line.
+    ip_nets:
+        A set of ipaddress.IPv4Networks and ipaddress.IPv6Networks found and parsed in this line.
+    is_comment:
+        True if this line starts with a comment character, ! or #.
+
 
     Methods
     -------
     family:
         Returns a list of family objects, optionally including ancestors, itself, children, and all descendants.
+    re_match:
+    re_fullmatch:
+    re_search:
+        Executes the function from the re module on the line string and returns the result.
+    has_ip:
+        Returns True if the supplied IPv4Address, IPv6Address, IPv4Network, or IPv6Network was found in this object.
     """
     #
     # Stores compiled re.Pattern objects for use in DocumentLine._gen_ip_addrs_nets().
@@ -196,6 +209,7 @@ class DocumentLine(object):
         return self._re_dispatch('fullmatch', pattern, flags)
 
     def _re_dispatch(self, method_name: str, pattern: str | re.Pattern, /, *args, **kwargs):
+        """Dispatches a method or function from the re module based on the pattern type supplied."""
         m = attrgetter(method_name)
         if isinstance(pattern, re.Pattern):
             return m(pattern)(self.line, *args, **kwargs)
