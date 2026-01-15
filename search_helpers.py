@@ -385,7 +385,8 @@ def common_line_suppressor() -> Callable[[List[DocumentLine]], List[DocumentLine
 
         The below suppresses those two repeated lines.
 
-        s = common_ancestor_suppressor() nbr_config_lines = [j for i in bgp_nbr_lines for j in s(i.family())]
+        s = common_ancestor_suppressor()
+        nbr_config_lines = [j for i in bgp_nbr_lines for j in s(i.family())]
 
     Returns:
         A function to be used in a list comprehension that suppresses adjacent common lines.
