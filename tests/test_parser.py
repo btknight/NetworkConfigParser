@@ -1,8 +1,6 @@
 from parser import *
 from pprint import pprint
-from collections import defaultdict
 import io
-import ipaddress as ipa
 import logging
 from unittest import TestCase
 
@@ -143,5 +141,4 @@ route-policy DEFAULT-ONLY
 
     def test_parse_from_file(self):
         p = parse_from_file('example-junos.txt')
-        pprint([i for i in p if i.gen < 3])
         assert 'groups' in p[0].line
