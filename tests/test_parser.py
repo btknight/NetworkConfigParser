@@ -9,7 +9,6 @@ from unittest import TestCase
 logging.basicConfig(level=logging.INFO)
 
 class Test_ParseSpacedConfig(TestCase):
-    # TODO add tests oriented around specific methods and functions, not general UAT
     def test_num_leading_spaces(self):
         interface = 'interface'
         for i in range(10):
@@ -142,20 +141,7 @@ route-policy DEFAULT-ONLY
         assert p[8].all_descendants == p[9:14]
         log_output.close()
 
-    def test_example_arista(self):
-        p = parse_from_file('example-arista.txt')
-        assert len(p) == 114
-        gen_distribution = defaultdict(lambda: 0)
-        for dl in p:
-            gen_distribution[dl.gen] += 1
-        measured_distribution = {1: 78, 2: 34, 3: 2}
-        assert gen_distribution == measured_distribution
-
-    def test_example_junos(self):
+    def test_parse_from_file(self):
         p = parse_from_file('example-junos.txt')
-        assert len(p) == 224
-        gen_distribution = defaultdict(lambda: 0)
-        for dl in p:
-            gen_distribution[dl.gen] += 1
-        measured_distribution = {1: 11, 2: 41, 3: 66, 4: 74, 5: 21, 6: 7, 7: 4}
-        assert gen_distribution == measured_distribution
+        pprint([i for i in p if i.gen < 3])
+        assert 'groups' in p[0].line

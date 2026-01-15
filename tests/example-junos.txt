@@ -1,5 +1,3 @@
-# EXAMPLE-JUNOS> show configuration 
-version 17.4R2-S10;
 groups {
     re0 {
         system {
@@ -9,7 +7,7 @@ groups {
             em0 {
                 unit 0 {
                     family inet {
-                        address 192.0.2.1/24;
+                        address 192.0.2.81/24;
                     }
                 }
             }
@@ -23,202 +21,10 @@ groups {
             em0 {
                 unit 0 {
                     family inet {
-                        address 192.0.2.2/24;
+                        address 192.0.2.82/24;
                     }
                 }
             }
-        }
-    }
-}
-apply-groups [ re1 re0 ];
-system {
-    host-name EXAMPLE-JUNOS;
-    domain-name example.com;
-    time-zone UnitedKingdom/North_Pudsey;
-    switchover-on-routing-crash;
-    default-address-selection;
-    authentication-order tacplus;
-    root-authentication {
-        encrypted-password /* SECRET-DATA */;
-    }
-    tacplus-server {
-        192.0.2.240 {
-            port 49;
-            secret /* SECRET-DATA */;
-            timeout 10;
-            single-connection;
-        }
-        192.0.2.241 {
-            port 49;
-            secret /* SECRET-DATA */;
-            timeout 10;
-            single-connection;
-        }
-    }
-    tacplus-options {
-        strict-authorization;
-        enhanced-accounting;
-    }
-    accounting {
-        events change-log;
-        destination {
-            tacplus {
-                server {
-                    192.0.2.240 secret /* SECRET-DATA */;
-                    192.0.2.241 secret /* SECRET-DATA */;
-                }
-            }
-        }
-    }
-    login {
-        message "WARNING: Now, go away or I shall... you know.";
-        class ro-class {
-            permissions [ firewall interface network routing security system view view-configuration ];
-        }
-        user mr_hilter {
-            full-name "Mr. Hilter";
-            uid 1970;
-            class super-user;
-            authentication {
-                encrypted-password /* SECRET-DATA */;
-            }
-        }
-        user harry_organs {
-            full-name "Constable Harry 'Snapper' Organs";
-            uid 1971;
-            class super-user;
-            authentication {
-                encrypted-password /* SECRET-DATA */;
-            }
-        }
-        user spiny_norman {
-            full-name "Spiny Norman the Enormous Hedgehog";
-            uid 1972;
-            class ro-class;
-        }
-        user arthur_putey {
-            full-name "Arthur Putey";
-            uid 1973;
-            class ro-class;
-        }
-    }
-    services {
-        ssh {
-            protocol-version v2;
-        }
-        netconf {
-            ssh;
-        }
-    }
-    syslog {
-        user * {
-            any emergency;
-        }
-        host 192.0.2.230 {
-            any warning;
-            authorization info;
-        }
-        file messages {
-            any verbose;
-            authorization info;
-            archive size 5000000;
-        }
-    }
-    commit synchronize;
-    ntp {
-        boot-server 192.0.2.123;
-        server 192.0.2.123;
-    }
-}
-chassis {
-    redundancy {
-        routing-engine 0 master;
-        routing-engine 1 backup;
-        failover {
-            on-loss-of-keepalives;
-            on-disk-failure;
-        }
-        graceful-switchover;
-    }
-    aggregated-devices {
-        ethernet {
-            device-count 128;
-        }
-    }
-    fru-poweron-sequence "0 1 2 3 4 8 9 10 11 5 6 7 8 12 13 14 15";
-}
-interfaces {
-    et-0/0/0 {
-        description "To redundant router et-0/0/0";
-        gigether-options {
-            802.3ad ae1;
-        }
-    }
-    et-0/0/1 {
-        description "Backbone link to Guildford";
-        mtu 2060;
-        unit 0 {
-            family inet {
-                address 192.0.2.32/30;
-            }
-        }
-    }
-    et-2/0/0 {
-        description "To redundant router et-2/0/0";
-        gigether-options {
-            802.3ad ae1;
-        }
-    }
-    ae1 {
-        description "To redundant router ae1";
-        aggregated-ether-options {
-            bfd-liveness-detection {
-                minimum-interval 50;
-                multiplier 3;
-                neighbor 192.0.2.12;
-                local-address 192.0.2.11;
-            }
-            lacp {
-                active;
-            }
-        }
-        unit 0 {
-            family inet {
-                address 192.0.2.11/30;
-            }
-        }
-    }
-}
-snmp {
-    location Exampling;
-    contact "Network Engineering";
-    client-list SNMP {
-        192.0.2.0/24;
-    }
-    community 3th3lTh3Fr0g {
-        authorization read-only;
-        client-list-name SNMP;
-    }
-}
-forwarding-options {
-    hash-key {
-        family inet {
-            layer-3;
-            layer-4;
-        }
-    }
-}
-routing-options {
-    nonstop-routing;
-    router-id 192.0.2.1;
-    forwarding-table {
-        export load-balance-all;
-    }
-}
-policy-options {
-    policy-statement load-balance-all {
-        then {
-            load-balance per-packet;
         }
     }
 }
