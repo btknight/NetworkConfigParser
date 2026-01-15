@@ -1,7 +1,7 @@
 from DocumentLine import DocumentLine
 from operator import attrgetter
 import re
-from typing import List, Callable, Iterable, Any, Tuple
+from typing import List, Callable, Iterable, Any
 
 SearchTerm = Callable[[DocumentLine], bool] | str | re.Pattern
 
@@ -49,7 +49,7 @@ def convert_search_spec_to_cb(search_spec: SearchTerm | Iterable[SearchTerm],
     return re_search_cb(search_spec, regex_flags)
 
 
-def find_lines(doc_lines: List[DocumentLine],
+def find_lines(doc_lines: List[DocumentLine] | None,
                search_spec: SearchTerm | Iterable[SearchTerm],
                regex_flags: int | re.RegexFlag = 0,
                regex_group: int | None = None,
@@ -76,8 +76,9 @@ def find_lines(doc_lines: List[DocumentLine],
     (depending on the setting of recurse_search), and so on.
 
     Args:
-        doc_lines (List[DocumentLine]):
-            A list of DocumentLines to search.
+        doc_lines:
+            A list of DocumentLines to search. If this is None, in the case of a previous search fed into a new search,
+            this function immediately returns None.
         search_spec:
             A search term or Iterable thereof. See discussion above.
         regex_flags:
@@ -125,6 +126,9 @@ def find_lines(doc_lines: List[DocumentLine],
     #
     # Technically, this function only handles marshaling search terms to callbacks, and executing an iterable of
     # callbacks. find_lines_with_cb() handles the actual search execution for each term.
+    if doc_lines is None:
+        return None
+    #
     def final_term():
         if is_iterable_search_term(search_spec):
             return search_spec[-1]

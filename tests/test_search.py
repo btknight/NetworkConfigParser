@@ -64,6 +64,9 @@ class TestSearchHelpers(TestCase):
         # case recurse_search is False, search_spec does not match chain
         result = find_lines(self.doc_lines, ['l2vpn', 'domain'], recurse_search=False)
         assert result is None
+        #
+        # case doc_lines is None
+        assert find_lines(None, self.test_str) is None
 
     def test_convert_search_spec_to_cb(self):
         #
