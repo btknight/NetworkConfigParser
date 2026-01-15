@@ -57,4 +57,4 @@ line 04. The reason is line 04 has an additional space in front, indicating it i
 """
 from DocumentLine import DocumentLine
 from parser import parse_from_file, parse_from_str_list, parse_from_str, parse_autodetect, parse_leading_spaces, parse_braced
-from search_helpers import find_line_and_ancestors, find_line_ancestors_descendants
+from search_helpers import find_lines, find_lines_with_cb, re_search_cb, parent_child_cb
