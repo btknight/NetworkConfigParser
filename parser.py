@@ -181,11 +181,11 @@ def parse_leading_spaces(doc_lines: List[str]) -> List[DocumentLine]:
                 banner_delimiter = m.group(1)
             elif re.match(r'^banner \S+$', line.strip()):  # Arista style
                 banner_delimiter = 'EOF'
-            dn_stack.append(StackMember(None, current_dn))
+            dn_stack.append(StackMember(1, current_dn))
             logging.debug(f'parse_leading_spaces: found banner start, delimiter="{banner_delimiter}"')
             logging.debug(f'parse_leading_spaces: dn_stack: [{dn_stack}]')
             continue
-        if banner_delimiter is not None and banner_delimiter in line:
+        if banner_delimiter is not None and (banner_delimiter in line or line in banner_delimiter):
             banner_delimiter = None
             dn_stack.pop()
             logging.debug(f'parse_leading_spaces: found banner end, delimiter="{banner_delimiter}"')
@@ -193,7 +193,7 @@ def parse_leading_spaces(doc_lines: List[str]) -> List[DocumentLine]:
         #
         # Deal with route policies and sets.
         if line.startswith('route-policy ') or re.match(r'\w+-set ', line):
-            dn_stack.append(StackMember(None, current_dn))
+            dn_stack.append(StackMember(1, current_dn))
             in_policy_set_section = True
             logging.debug(f'parse_leading_spaces: found IOSXR {line.split()[0]} start')
             logging.debug(f'parse_leading_spaces: dn_stack: [{dn_stack}]')
