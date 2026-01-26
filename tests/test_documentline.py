@@ -1,7 +1,6 @@
-from DocumentLine import DocumentLine
+from networkconfigparser.DocumentLine import DocumentLine
 import ipaddress as ipa
 import re
-from pprint import pprint
 import unittest
 
 class TestDocumentLine(unittest.TestCase):

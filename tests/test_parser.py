@@ -1,5 +1,4 @@
-from parser import *
-from pprint import pprint
+from networkconfigparser.parser import *
 import io
 import logging
 from unittest import TestCase

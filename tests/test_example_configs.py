@@ -1,7 +1,6 @@
-from parser import *
-from search_helpers import *
+from networkconfigparser.parser import *
+from networkconfigparser.search_helpers import *
 import ipaddress as ipa
-from pprint import pprint
 import logging
 from unittest import TestCase
 

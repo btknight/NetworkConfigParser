@@ -1,5 +1,5 @@
 """Parses the sections of a config document."""
-from DocumentLine import DocumentLine
+from networkconfigparser.DocumentLine import DocumentLine
 from collections import namedtuple
 import logging
 import re

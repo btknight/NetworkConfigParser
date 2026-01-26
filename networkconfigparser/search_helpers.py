@@ -1,4 +1,4 @@
-from DocumentLine import DocumentLine
+from networkconfigparser.DocumentLine import DocumentLine
 from operator import attrgetter
 import re
 from typing import List, Callable, Iterable, Any

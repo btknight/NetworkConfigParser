@@ -1,6 +1,5 @@
-from parser import *
-from search_helpers import *
-from pprint import pprint
+from networkconfigparser.parser import *
+from networkconfigparser.search_helpers import *
 from unittest import TestCase
 
 class TestSearchHelpers(TestCase):

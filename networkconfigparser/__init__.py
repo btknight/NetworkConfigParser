@@ -55,6 +55,6 @@ no children of its own.
 - The third line would also be parsed as a child object of line 01. However, this object would have a child of its own,
 line 04. The reason is line 04 has an additional space in front, indicating it is a sub-directive of line 03.
 """
-from DocumentLine import DocumentLine
-from parser import parse_from_file, parse_from_str_list, parse_from_str, parse_autodetect, parse_leading_spaces, parse_braced
-from search_helpers import find_lines, find_lines_with_cb, re_search_cb, parent_child_cb
+from networkconfigparser.DocumentLine import DocumentLine
+from networkconfigparser.parser import parse_from_file, parse_from_str_list, parse_from_str, parse_autodetect, parse_leading_spaces, parse_braced
+from networkconfigparser.search_helpers import find_lines, find_lines_with_cb, re_search_cb, parent_child_cb
