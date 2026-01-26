@@ -1,0 +1,28 @@
+[project]
+name = "NetworkConfigParser"
+authors = [
+  { name="Brian T Knight", email="code@knight-networks.com" },
+]
+description = "Parser and searching tools for network device configurations, such as Cisco IOS and Juniper JunOS"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+dynamic = ["version"]
+keywords = ["nos", "network", "ios", "junos", "config", "configuration", "cisco", "juniper", "regex", "search", "parse"]
+dependencies = []
+
+[build-system]
+requires = ["setuptools >= 80.10.2"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/btknight/NetworkConfigParser"
+Issues = "https://github.com/btknight/NetworkConfigParser/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "networkconfigparser.__version__"}
