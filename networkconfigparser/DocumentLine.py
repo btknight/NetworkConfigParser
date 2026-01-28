@@ -12,53 +12,22 @@ IPAddrAndNet = Tuple[ipa.IPv4Address | ipa.IPv6Address, ipa.IPv4Network | ipa.IP
 class DocumentLine(object):
     """Represents a single line in a document.
 
-    Manages the lineage of a line of text from a structured document, like a Cisco or Juniper configuration file. This
-    retains links to parent and child items. If this item is desired as part of a search, but the ancestor or
-    descendant items are required also, this object can retrieve those.
+    Manages the lineage of a line of text from a structured document, like a Cisco or Juniper configuration file.
+    Retains links to parent and child items.
 
     This object passes undefined method calls to the 'line' attribute, the line of text, making working with text
     simpler.
 
-    Attributes
-    ----------
-    line:
-        A str containing the text of the line.
-    line_num:
-        int line number from the original document.
-    gen:
-        An int, starting from 1, indicating the generation level of the object. 1 indicates a top-level object,
-        2 indicates a child of a top-level object, 3 is a grandchild, and so on.
-    ancestors:
-        A list of DocumentLine objects of this object's ancestors, sorted from top-level object to this object's parent.
-    parent:
-        The parent DocumentLine object for this object, otherwise None if there is this is a top-level object.
-    children:
-        A list of DocumentLine objects that are this object's children.
-    all_descendants:
-        A list of DocumentLine objects of all children, grandchildren, great-grandchildren, etc. of this object,
-        ordered in the sequence in which they appear in the configuration.
-    ip_addrs:
-        A set of ipaddress.IPv4Address and ipaddress.IPv6Addresses found and parsed in this line.
-    ip_nets:
-        A set of ipaddress.IPv4Networks and ipaddress.IPv6Networks found and parsed in this line.
-    is_comment:
-        True if this line starts with a comment character, ! or #.
-
-
-    Methods
-    -------
-    family:
-        Returns a list of family objects, optionally including ancestors, itself, children, and all descendants.
-    re_match:
-    re_fullmatch:
-    re_search:
-        Executes the function from the re module on the line string and returns the result.
-    has_ip:
-        Returns True if the supplied IPv4Address, IPv6Address, IPv4Network, or IPv6Network was found in this object.
+    Parameters:
+        line_num:
+            An int indicating the line number of the line in the source document.
+        line:
+            The text of the line.
+        parent:
+            The DocumentLine object that is the immediate parent of this object. Defaults to None. Can be set after
+            object creation.
     """
-    #
-    # Stores compiled re.Pattern objects for use in DocumentLine._gen_ip_addrs_nets().
-    ip_patterns = {
+    _ip_patterns = {
         'ipv6_net': re.compile(r'([0-9A-Fa-f]{0,4}:[0-9A-Fa-f]{0,4}:[0-9A-Fa-f:]*/\d+)'),
         'ipv6_addr': re.compile(r'([0-9A-Fa-f]{0,4}:[0-9A-Fa-f]{0,4}:[0-9A-Fa-f:]*)'),
         'snmp_oid': re.compile(r'\d+\.\d+\.\d+\.\d+\.'),
@@ -66,6 +35,7 @@ class DocumentLine(object):
         'ipv4_addr_netmask': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?![\.\-])'),
         'ipv4_addr': re.compile(r'(?<![\.\-])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?![\.\-])'),
     }
+    """Stores compiled re.Pattern objects for use in DocumentLine._gen_ip_addrs_nets()."""
 
     def __init__(self, line_num: int, line: str, parent: Optional[object] = None):
         self._line_num = line_num
@@ -78,20 +48,21 @@ class DocumentLine(object):
 
     @property
     def line_num(self):
+        """An int indicating the line number of the line in the source document."""
         return self._line_num
 
     @property
     def line(self):
+        """The text from the document. This value is rstrip()'ed when read in, so trailing spaces will not be
+        present.
+        """
         return self._line
 
     @property
     def ip_addrs(self):
-        """Returns a set of IPv[46]Address objects that were parsed in this document line.
+        """A set of ipaddress.IPv[46]Address objects of IPs that were detected in this document line.
 
         This property method creates the set on first access.
-
-        Returns:
-            A set of IPv[46]Address objects.
         """
         if not self._ips_parsed:
             self._create_ip_sets()
@@ -99,12 +70,9 @@ class DocumentLine(object):
 
     @property
     def ip_nets(self):
-        """Returns a set of IPv[46]Network objects that were parsed in this document line.
+        """A set of ipaddress.IPv[46]Network objects of IP networks that were detected in this document line.
 
         This property method creates the set on first access.
-
-        Returns:
-            A set of IPv[46]Network objects.
         """
         if not self._ips_parsed:
             self._create_ip_sets()
@@ -112,32 +80,21 @@ class DocumentLine(object):
 
     @property
     def is_comment(self):
-        """True if this line is a comment.
-
-        Returns:
-            A bool indicating if the line is a comment."""
+        """True if this line is a comment, e.g. starts with zero or more spaces followed by "!" or "#"."""
         comment_chars = ['!', '#']
         return any(self.line.lstrip().startswith(i) for i in comment_chars)
 
     @property
     def gen(self) -> int:
-        """The generation level of the line.
-
-        1 indicates a top-level object, 2 indicates a child of a top-level object, 3 is a grandchild, and so on.
-
-        Returns:
-            Integer of the generation level
-        """
+        """The generation level of the line. 1 indicates a top-level object, 2 indicates a child of a top-level object,
+        3 is a grandchild, and so on."""
         if self.parent is None:
             return 1
         return self.parent.gen + 1
 
     @property
     def ancestors(self) -> List[object]:
-        """A list of DocumentLine objects of this object's ancestors.
-
-        Returns:
-            A list of ancestors of this object, sorted from the top-level to the immediate parent.
+        """A list of DocumentLine objects of this object's ancestors, sorted from the top-level to the immediate parent.
         """
         if self.parent is None:
             return []
@@ -145,11 +102,7 @@ class DocumentLine(object):
 
     @property
     def all_descendants(self) -> List[object]:
-        """Returns all descendants of this object.
-
-        Returns:
-            List of DocumentLine objects of all children, grandchildren, great-grandchildren, etc. of this
-            object, ordered in the sequence in which they appear in the configuration.
+        """A list of all descendants of this object, ordered in the sequence in which they appear in the configuration.
         """
         descendants = []
         for child in self.children:
@@ -359,32 +312,32 @@ class DocumentLine(object):
             return None
         #
         # SNMP OIDs often look like IPs. If OID, exit.
-        if re.search(self.ip_patterns['snmp_oid'], self.line):
+        if re.search(self._ip_patterns['snmp_oid'], self.line):
             return
         #
         # Search in our copy of self.line
         while len(line) > 0:
             #
             # IPv6 network case
-            if net_addr_t := try_search_and_parse(self.ip_patterns['ipv6_net'], self._parse_ip_net):
+            if net_addr_t := try_search_and_parse(self._ip_patterns['ipv6_net'], self._parse_ip_net):
                 yield net_addr_t
             #
             # IPv6 address case, with no slash
-            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv6_addr'], self._parse_ip_addr):
+            elif net_addr_t := try_search_and_parse(self._ip_patterns['ipv6_addr'], self._parse_ip_addr):
                 yield net_addr_t
             #
             # IPv4 network case, with slash
-            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv4_cidr'], self._parse_ip_net):
+            elif net_addr_t := try_search_and_parse(self._ip_patterns['ipv4_cidr'], self._parse_ip_net):
                 yield net_addr_t
             #
             # IPv4 network case, with address and netmask separated by a space
-            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv4_addr_netmask'],
+            elif net_addr_t := try_search_and_parse(self._ip_patterns['ipv4_addr_netmask'],
                                            self._parse_ip_net,
                                            match_transform=lambda x: '/'.join(x.split())):
                 yield net_addr_t
             #
             # IPv4 address case
-            elif net_addr_t := try_search_and_parse(self.ip_patterns['ipv4_addr'], self._parse_ip_addr):
+            elif net_addr_t := try_search_and_parse(self._ip_patterns['ipv4_addr'], self._parse_ip_addr):
                 yield net_addr_t
             #
             # Otherwise no matches were found

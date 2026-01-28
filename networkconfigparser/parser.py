@@ -209,42 +209,40 @@ def parse_from_file(document_filename: str) -> List[DocumentLine]:
 
     Roughly equal to:
         with open(document_filename) as fh:
-            config = fh.readlines()
-        return parse_autodetect(config)
+            text_lines = fh.readlines()
+        return parse_from_str_list(text_lines)
 
     Args:
         document_filename: Full path of the file to open and read from
 
     Returns:
-        A list of DocumentLines parsed by parse_autodetect().
+        A list of DocumentLine objects.
     """
     with open(document_filename) as fh:
-        config = fh.readlines()
-    return parse_from_str_list(config)
+        text_lines = fh.readlines()
+    return parse_from_str_list(text_lines)
 
-def parse_from_str_list(doc_lines: List[str]) -> List[DocumentLine]:
+def parse_from_str_list(text_lines: List[str]) -> List[DocumentLine]:
     """Parses a document stored in a list of text.
 
-    Alias for parse_autodetect().
-
     Args:
-        doc_lines: List of text to be parsed.
+        text_lines: List of text to be parsed.
 
     Returns:
-        A list of DocumentLines parsed by parse_autodetect().
+        A list of DocumentLine objects.
     """
-    return parse_autodetect(doc_lines)
+    return parse_autodetect(text_lines)
 
-def parse_from_str(document: str) -> List[DocumentLine]:
+def parse_from_str(text: str) -> List[DocumentLine]:
     """Parses a document stored in memory as a single string of text.
 
-    Roughly equal to:
-        return parse_autodetect(document.split('\n'))
+    Exactly equal to:
+        return parse_from_str_list(document.split('\\\\n'))
 
     Args:
-        document: Full text to be parsed.
+        text: Full text to be parsed.
 
     Returns:
-        A list of DocumentLines parsed by parse_autodetect().
+        A list of DocumentLine objects.
     """
-    return parse_from_str_list(document.split('\n'))
+    return parse_from_str_list(text.split('\n'))

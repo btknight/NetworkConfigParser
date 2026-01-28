@@ -1,39 +1,97 @@
 # NetworkConfigParser
 
 A small module to parse structured documents, like Cisco or Juniper network device configurations. Maintains
-relationships among lines for ease of further parsing and analysis. Parses IP addresses for easier matching using the 
-ipaddress library.
+familial relationships among lines for ease of further parsing and analysis. Parses IP addresses for easier matching
+using the ipaddress library.
 
-## Quick Start and Examples
+# Intended Purpose
 
-Please see the README-examples.ipynb notebook for discussion and examples of usage.
+- Auditing Cisco or Juniper network device configurations
+- Extracting key configuration elements for importing into a Configuration Management System
 
 ---
 
-## Why the author wrote this library / Critiques of the current state of things
+# Quick Start and Examples
 
-- Most libraries include a filter() or find_objects() function or method, which constrains searching the tree to what
-is supported by the method, typically regular expressions. A more flexible way is to support callback functions as
-well as regular expressions. With functions, the user has a freer hand in specifying match criteria.
+Install the package with your package manager of choice:
+```pip install NetworkConfigParser```
 
-- More than one library supports inserts and changes in an object-based tree. NetworkConfigParser does not support this.
-The goal of this library is to enable easy and flexible querying of the document and its structure. We use a simple
-list to store the objects, so standard list comprehensions can be used to query the data. If the user needs to add or
-change configuration and have the document tree update itself, the user is encouraged to stick with the library that
-they use today. Or, a list comprehension can easily project the matching element and its family into a list of strings,
-and the user may add the desired elements to that list. That list may then be re-parsed into DocumentLine objects.
+Import the module, load a network device configuration, and start searching within it:
 
-- Other library objects tend to be less Pythonic, making access to search tools clunky. Here, care is taken to make
-string methods work as expected, such as `line_object.startswith('route-policy ')` or `'description' in line_object`. 
-Because the regular expression library does not perform a str() on text to be matched, DocumentLine has wrapper methods
-re_search(), re_match(), and re_fullmatch() included for less clunky searching.
+```from networkconfigparser import *
 
-- In other libraries, working with IP addresses can be difficult. IP networks and addresses are essential to daily life
-as a network administrator. This library parses each line of text for IP addresses and networks, converts them to
-objects from the standard Python ipaddress library, and stores those in sets with the associated line. Searching for
-lines that match an IP address or network becomes simpler, more deterministic, and more flexible.
+doc_lines = parse_from_file('example-device-config.txt')
 
-- No other parsing is done to recognize the elements within a line. Only the familial relationship is tracked.
-Since there is great variability in configuration directives even within a vendor's OS family line, that further
-parsing is left to the user. This keeps NetworkConfigParser's implementation and API from growing too far, and keeps
-the module size small.
+search_result = find_lines(doc_lines, r'^interface ')
+```
+
+---
+
+# Quick Overview
+
+## Configuration parsing
+
+`doc_lines = parse_from_file(filename)`
+`doc_lines = parse_from_str_list(lines_list)`
+`doc_lines = parse_from_str(concatenated_lines)`
+
+Used to parse the configuration into a list of DocumentLine objects.
+
+## Representation
+
+`DocumentLine(line_num, line)`
+
+Object representing a line from a configuration document.
+
+`str(DocumentLine)`
+
+The original line from the document.
+
+`DocumentLine.ancestors`
+
+List of ancestors of the object, i.e. `['interface Eth0/0']` if called on ` description Ethernet interface`.
+
+`DocumentLine.children`
+`DocumentLine.all_descendants`
+
+List of immediate children or all descendants of the object.
+
+`DocumentLine.ip_addrs`
+
+Sets of IPv4Address / IPv6Address objects found in the line.
+
+`DocumentLine.ip_nets`
+
+Same as above, except IPv4Network / IPv6Network objects.
+
+## Searching
+
+`find_lines(doc_lines, search_expression)`
+
+Searches for lines in a list of DocumentLine objects. For the search parameter, `find_lines()` accepts:
+- a string regular expression
+- a compiled regular expression
+- a function taking a DocumentLine as its sole argument and returning a boolean indicating a match
+- a list of any combination of the above items, for matching children with particular parents
+
+`parent_child_cb('parent_criteria', 'child_criteria')`
+
+Matches a parent line containing a specific child. Returns a search function to supply to `find_lines()`.
+
+## For More
+
+The above is not a conclusive list of all functions, methods, or parameters available.
+
+Please see the README-examples.ipynb notebook for further discussion and examples of usage.
+
+# Issues
+
+# Contributing
+
+# License
+
+GPLv3
+
+# Credits
+
+Brian Knight <ncp.codelab @at@ knight-networks.com>
