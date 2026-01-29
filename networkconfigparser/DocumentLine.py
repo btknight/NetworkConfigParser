@@ -16,7 +16,17 @@ class DocumentLine(object):
     Retains links to parent and child items.
 
     This object passes undefined method calls to the 'line' attribute, the line of text, making working with text
-    simpler.
+    simpler:
+
+    .. code-block:: python
+
+        >>> dl = DocumentLine(1, 'interface TenGigE0/0/0/0')
+        >>> dl.startswith('interface ')
+        Out[2]: True
+        >>> 'TenGig' in dl
+        Out[3]: True
+        >>> dl.endswith('The Spanish Inquisition')
+        Out[4]: False
 
     Parameters:
         line_num:

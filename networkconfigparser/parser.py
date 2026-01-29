@@ -207,7 +207,10 @@ def parse_leading_spaces(doc_lines: List[str]) -> List[DocumentLine]:
 def parse_from_file(document_filename: str) -> List[DocumentLine]:
     """Parses a document stored in a file.
 
-    Roughly equal to:
+    Exactly equal to:
+
+    .. code-block:: python
+
         with open(document_filename) as fh:
             text_lines = fh.readlines()
         return parse_from_str_list(text_lines)
@@ -225,6 +228,11 @@ def parse_from_file(document_filename: str) -> List[DocumentLine]:
 def parse_from_str_list(text_lines: List[str]) -> List[DocumentLine]:
     """Parses a document stored in a list of text.
 
+    This passes the lines of text to parse_autodetect(), an internal function that determines whether the familial
+    relationships are brace-delimited (Juniper-style) or space-delimited (Cisco-style).
+
+    During processing, all lines are rstrip()'ed, so no trailing spaces are preserved.
+
     Args:
         text_lines: List of text to be parsed.
 
@@ -237,7 +245,10 @@ def parse_from_str(text: str) -> List[DocumentLine]:
     """Parses a document stored in memory as a single string of text.
 
     Exactly equal to:
-        return parse_from_str_list(document.split('\\\\n'))
+
+    .. code-block:: python
+
+        return parse_from_str_list(text.split('\\\\n'))
 
     Args:
         text: Full text to be parsed.

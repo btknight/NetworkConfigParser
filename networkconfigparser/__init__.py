@@ -1,23 +1,22 @@
-"""NetworkConfigParser parses structured network configuration files for their relationships to one another, making
-searching and further parsing of the contents easier.
+"""NetworkConfigParser is a small module to parse structured documents, like Cisco or Juniper network device
+configurations. Maintains familial relationships among lines for ease of further parsing and analysis. Parses IP
+addresses for easier matching using the ipaddress library.
 
 Quick Start
 -----------
 
 Example: We want to find interfaces on a Cisco IOS router that are shut down.
 
-# Read in your config
 
 .. code-block:: python
 
+    # Read in your config
     doc_lines = parse_from_file('config-filename.conf')
 
     # Find lines with "shutdown" in them
-
     shutdown_lines = [i for i in doc_lines if i.lstrip() == 'shutdown']
 
     # shutdown_lines consists of only the lines " shutdown" at present. To include the "interface" lines:
-
     intf_and_shutdown_lines = [j for i in shutdown_lines for j in i.family()]
 
 Now intf_and_shutdown_lines contains something similar to:

@@ -14,7 +14,7 @@ Module members
 --------------
 
 .. toctree::
-   parser
-   documentline
-   search_helpers
+   api/parser
+   api/documentline
+   api/search_helpers
 

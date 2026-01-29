@@ -286,6 +286,9 @@ def parent_child_cb(parent_spec: str | re.Pattern | Callable[[DocumentLine], boo
     Enables behavior similar to CiscoConfParse.find_parent_objects().
 
     Example:
+
+    .. code-block:: python
+
         config = '''interface Ethernet0/0
                      address-family ipv4 unicast
                       metric 2200
