@@ -1,0 +1,6 @@
+.idea/*
+.venv/*
+*egg-info/*
+dist/*
+*/__pycache__/*
+sphinx_doc/build/*
