@@ -76,7 +76,7 @@ def find_lines(doc_lines: List[DocumentLine] | None,
         * A regular expression string
         * An re.Pattern object
         * A callable function taking a DocumentLine as input and returning a bool to indicate a
-            successful match
+          successful match
         * An iterable containing any combination of the three inputs above
 
     If the search term is an iterable, each term will be matched in successive generations: if the

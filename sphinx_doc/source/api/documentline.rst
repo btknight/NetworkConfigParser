@@ -1,7 +1,7 @@
-networkconfigparser.DocumentLine module
+networkconfigparser.documentline module
 =======================================
 
-.. automodule:: networkconfigparser.DocumentLine
+.. automodule:: networkconfigparser.documentline
    :members:
    :member-order: bysource
    :undoc-members:

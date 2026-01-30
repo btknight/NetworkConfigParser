@@ -117,8 +117,9 @@ Please see :doc:`notebooks/examples` for further discussion and examples of usag
 Issues
 ------
 
-None; this software and documentation is perfectly written. :) Please report issues to the GitHub issue tracker at
-[TBD].
+Please report issues to the `GitHub issue tracker`_.
+
+.. _GitHub issue tracker: https://github.com/btknight/NetworkConfigParser/issues
 
 Contributing
 ------------
