@@ -89,10 +89,11 @@ Searching
 Searches for lines in a list of DocumentLine objects.
 
 For the search parameter, ``find_lines()`` accepts:
-- a string regular expression
-- a compiled regular expression
-- a function taking a DocumentLine as its sole argument and returning a boolean indicating a match
-- a list of any combination of the above items, for matching children with particular parents
+
+* a string regular expression
+* a compiled regular expression
+* a function taking a DocumentLine as its sole argument and returning a boolean indicating a match
+* a list of any combination of the above items, for matching children with particular parents
 
 Returns a list of matching lines.
 
@@ -113,6 +114,13 @@ For More
 The above is not an exhaustive list of all functions, methods, or parameters available.
 
 Please see :doc:`notebooks/examples` for further discussion and examples of usage.
+
+Documentation
+-------------
+
+Full documentation is available at `Read The Docs`_.
+
+.. _Read The Docs: https://networkconfigparser.readthedocs.io/en/latest/
 
 Issues
 ------
