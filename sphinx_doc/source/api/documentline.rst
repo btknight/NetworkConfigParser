@@ -1,8 +1,10 @@
 networkconfigparser.DocumentLine module
 =======================================
 
-.. autoclass:: networkconfigparser.DocumentLine.DocumentLine
+.. automodule:: networkconfigparser.DocumentLine
    :members:
    :member-order: bysource
    :undoc-members:
    :show-inheritance:
+
+
