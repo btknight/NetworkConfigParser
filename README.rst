@@ -39,50 +39,52 @@ Configuration parsing
 
 Used to parse the configuration into a list of DocumentLine objects.
 
-Representation
-^^^^^^^^^^^^^^
+Object Representation
+^^^^^^^^^^^^^^^^^^^^^
 
-A DocumentLine object represents a line from a configuration document.
+A DocumentLine object represents a line from a configuration document. Continuing with the above:
 
 .. code-block:: python
 
     documentline = doc_lines[0]
 
     str(documentline)
+    documentline.line
 
-The original line from the document.
+Calling str() on the DocumentLine object or accessing the ``line`` attribute gives the original line.
 
 .. code-block:: python
 
     documentline.ancestors
 
-List of ancestors of the object, i.e. ``['interface Eth0/0']`` if called on ` description Ethernet interface`.
+The ``ancestors`` attribute gives the list of ancestors of the object, i.e. ``['interface Eth0/0']`` if called on ``description Ethernet interface``.
 
 .. code-block:: python
 
     documentline.children
     documentline.all_descendants
 
-List of immediate children or all descendants of the object.
+The ``children`` attribute provides a list of immediate children; ``all_descendants`` gives all descendants of the
+object.
 
 .. code-block:: python
 
-    DocumentLine.ip_addrs
+    documentline.ip_addrs
 
-Sets of IPv4Address or IPv6Address objects found in the line.
+``ip_addrs`` contains a set of IPv4Address and/or IPv6Address objects found in the line.
 
 .. code-block:: python
 
-    DocumentLine.ip_nets
+    documentline.ip_nets
 
-Same as above, except IPv4Network / IPv6Network objects.
+``ip_nets`` is similar to the above, except IPv4Network / IPv6Network objects.
 
 Searching
 ^^^^^^^^^
 
 .. code-block:: python
 
-    find_lines(doc_lines, search_expression)
+    search_result = find_lines(doc_lines, search_expression)
 
 Searches for lines in a list of DocumentLine objects.
 
@@ -92,32 +94,46 @@ For the search parameter, ``find_lines()`` accepts:
 - a function taking a DocumentLine as its sole argument and returning a boolean indicating a match
 - a list of any combination of the above items, for matching children with particular parents
 
+Returns a list of matching lines.
+
+Can also return ancestor and descendant lines if ``include_ancestors``, ``include_children``, or
+``include_all_descendants`` are set to True.
+
 .. code-block:: python
 
     search_term = parent_child_cb('parent_criteria', 'child_criteria')
     find_lines(doc_lines, search_term)
 
-Matches a parent line containing a specific child. Returns a search function to supply to `find_lines()`.
+Matches a parent line containing a specific child. ``parent_child_cb()`` returns a search function to supply to
+``find_lines()``.
 
 For More
 ^^^^^^^^
 
-The above is not a conclusive list of all functions, methods, or parameters available.
+The above is not an exhaustive list of all functions, methods, or parameters available.
 
-Please see the README-examples.ipynb notebook for further discussion and examples of usage.
+Please see :doc:`notebooks/examples` for further discussion and examples of usage.
 
 Issues
 ------
 
+None; this software and documentation is perfectly written. :) Please report issues to the GitHub issue tracker at
+[TBD].
+
 Contributing
 ------------
+
+There are no guidelines yet for contributing to development. This will be addressed as the project develops and
+unfolds. Drop me a line via email or send me a pull request via GitHub, and we'll talk.
 
 License
 -------
 
 GPLv3
 
-Credits
--------
+Credit / Blame
+--------------
 
 Brian Knight <ncp.codelab @at@ knight-networks.com>
+
+Many thanks to Ben Wells and Ben Julson at Sinch Voice for reviewing the code and for their comments.
