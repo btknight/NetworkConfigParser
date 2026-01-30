@@ -1,24 +1,31 @@
-from networkconfigparser.parser import *
+"""Test parser functions"""
 import io
 import logging
 from unittest import TestCase
+from networkconfigparser.parser import num_leading_spaces, parse_autodetect, parse_from_file
+from networkconfigparser.documentline import DocumentLine
 
 logging.basicConfig(level=logging.INFO)
 
-class Test_ParseSpacedConfig(TestCase):
+class TestParseSpacedConfig(TestCase):
+    """Test parser functions"""
+
     def test_num_leading_spaces(self):
+        """Test detection of leading spaces"""
         interface = 'interface'
         for i in range(10):
             line = ' ' * i + interface
             assert num_leading_spaces(line) == i
 
     def test_plain_line(self):
+        """Test parsing a single line fed to a DocumentLine object"""
         line = 'router bgp 65535\n'
         dl = DocumentLine(1, line.rstrip())
         doc_lines = parse_autodetect([line])
         assert doc_lines == [dl]
 
     def test_banner(self):
+        """Test banner parsing, an exceptional section with its own rules"""
         config = """banner login ^C
 +----------------------------------------------------------------------------+
 |                                big banner                                  |
@@ -45,6 +52,7 @@ class Test_ParseSpacedConfig(TestCase):
         assert lo.all_descendants == p[1:17]
 
     def test_section_multilevel(self):
+        """Test parsing a multi-level section, ensure parent / child relationships are working"""
         config = """l2vpn
  logging
   pseudowire
@@ -78,6 +86,7 @@ interface TenGigE0/1/0/2
         assert p[4].ancestors[-1].family() == [p[0]] + p[3:10]
 
     def test_route_policy(self):
+        """Test route-policy and prefix-set parsing, an exceptional section with its own rules"""
         config = """route-policy FOOBR-IN
   if destination in FOOBR-PFX-SET then
     set med 0
@@ -104,10 +113,12 @@ end-policy"""
         assert p[9].all_descendants == p[10:16]
 
     def test_route_policy_with_no_trailing_end(self):
+        """A route-policy with no end-policy statement will generate a warning, test for that"""
         log_output = io.StringIO()
         stream_handler = logging.StreamHandler(log_output)
         logging.getLogger().addHandler(stream_handler)
-        logging.warning('The next WARNING is normal, testing route policy with no trailing end- statement. Please ignore')
+        logging.warning('The next WARNING is normal, testing route policy with no trailing end- '
+                        'statement. Please ignore')
         config = """route-policy FOOBR-IN
   if destination in FOOBR-PFX-SET then
     set med 0
@@ -130,7 +141,8 @@ route-policy DEFAULT-ONLY
         assert len(p) == 14
         assert len([i for i in p if i.gen == 1]) == 2
         assert len([i for i in p if i.gen == 2]) == 12
-        assert 'no end-set or end-policy encountered at line 9 within section route-policy FOOBR-IN' in log_output.getvalue()
+        assert ('no end-set or end-policy encountered at line 9 within section route-policy '
+                'FOOBR-IN' in log_output.getvalue())
         assert p[0].children == p[1:8]
         assert p[0].all_descendants == p[1:8]
         assert p[0].family() == p[0:8]
@@ -139,5 +151,6 @@ route-policy DEFAULT-ONLY
         log_output.close()
 
     def test_parse_from_file(self):
+        """Test parsing from a file"""
         p = parse_from_file('example-junos.txt')
         assert 'groups' in p[0].line

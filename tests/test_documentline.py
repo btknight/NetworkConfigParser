@@ -1,15 +1,18 @@
-from networkconfigparser.DocumentLine import DocumentLine
+"""Testing for DocumentLine object."""
 import ipaddress as ipa
 import re
 import unittest
+from networkconfigparser.documentline import DocumentLine
 
 class TestDocumentLine(unittest.TestCase):
+    """Testing for DocumentLine object."""
     def test_ipv6_parsing(self):
+        """Test IPv6 address / network parsing and conversion to ipaddress objects"""
         #
         # Two IPs should be found in this line, one parsed as IPv6Network, one as IPv6Address
         ip_route = 'ipv6 route 2001:db8:690:f00b::/64 Tunnel6 2001:db8:690::1'
         dl = DocumentLine(1, ip_route)
-        ips = [i for i in dl._gen_ip_addrs_nets()]
+        ips = list(dl._gen_ip_addrs_nets())
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv6Address('2001:db8:690:f00b::')
@@ -21,7 +24,7 @@ class TestDocumentLine(unittest.TestCase):
         # One IP should be found in this line, parsed as IPv6Interface
         ip_cidr = 'ipv6 address 2001:db8:690:42::3/64'
         dl = DocumentLine(1, ip_cidr)
-        ips = [i for i in dl._gen_ip_addrs_nets()]
+        ips = list(dl._gen_ip_addrs_nets())
         a, n = ips[0]
         assert a == ipa.IPv6Address('2001:db8:690:42::3')
         assert n == ipa.IPv6Network('2001:db8:690:42::/64')
@@ -29,7 +32,7 @@ class TestDocumentLine(unittest.TestCase):
         # A default route case
         ip_route = 'ipv6 route ::/0 Gig0/0/0 2001:db8:690::1'
         dl = DocumentLine(1, ip_route)
-        ips = [i for i in dl._gen_ip_addrs_nets()]
+        ips = list(dl._gen_ip_addrs_nets())
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv6Address('::')
@@ -39,6 +42,7 @@ class TestDocumentLine(unittest.TestCase):
         assert n is None
 
     def test_ipv6_has_ip(self):
+        """Test IPv6 address / network matching"""
         #
         # Two IPs should be found in this line, one parsed as IPv6Network, one as IPv6Address
         ip_route = 'ipv6 route 2001:db8:690:f00b::/64 Tunnel6 2001:db8:690::1'
@@ -84,11 +88,12 @@ class TestDocumentLine(unittest.TestCase):
         assert not dl.has_ip(ipa.IPv4Interface('192.0.2.1/24'))
 
     def test_ipv4_parsing(self):
+        """Test IPv4 address / network parsing and conversion to ipaddress objects"""
         #
         # Two IPs should be found in this line, one parsed as IPv4Network, one as IPv4Address
         ip_route = 'ip route 203.0.113.0 255.255.255.0 192.0.2.233'
         dl = DocumentLine(1, ip_route)
-        ips = [i for i in dl._gen_ip_addrs_nets()]
+        ips = list(dl._gen_ip_addrs_nets())
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv4Address('203.0.113.0')
@@ -100,7 +105,7 @@ class TestDocumentLine(unittest.TestCase):
         # One IP should be found in this line, parsed as IPv4Interface
         ip_cidr = 'ip address 203.0.113.129/25'
         dl = DocumentLine(1, ip_cidr)
-        ips = [i for i in dl._gen_ip_addrs_nets()]
+        ips = list(dl._gen_ip_addrs_nets())
         a, n = ips[0]
         assert a == ipa.IPv4Address('203.0.113.129')
         assert n == ipa.IPv4Network('203.0.113.128/25')
@@ -108,7 +113,7 @@ class TestDocumentLine(unittest.TestCase):
         # A default route case
         ip_route = 'ip route 0.0.0.0 0.0.0.0 192.0.2.233'
         dl = DocumentLine(1, ip_route)
-        ips = [i for i in dl._gen_ip_addrs_nets()]
+        ips = list(dl._gen_ip_addrs_nets())
         assert len(ips) == 2
         a, n = ips[0]
         assert a == ipa.IPv4Address('0.0.0.0')
@@ -118,6 +123,7 @@ class TestDocumentLine(unittest.TestCase):
         assert n is None
 
     def test_ipv4_has_ip(self):
+        """Test IPv4 address / network matching"""
         #
         # Two IPs should be found in this line, one parsed as IPv4Network, one as IPv4Address
         ip_route = 'ip route 203.0.113.0 255.255.255.0 192.0.2.233'
@@ -162,6 +168,7 @@ class TestDocumentLine(unittest.TestCase):
         assert not dl.has_ip(ipa.IPv6Network('2001:db8:690:f00b::/64'))
 
     def test_identity_equality(self):
+        """Test equality, identity, and hashing functions"""
         test_line = 'ip route 203.0.113.0 255.255.255.0 192.0.2.233'
         dl1 = DocumentLine(1, test_line)
         dl2 = DocumentLine(1, test_line)
@@ -170,11 +177,12 @@ class TestDocumentLine(unittest.TestCase):
         assert hash(dl1) == hash(dl2)
         assert len({dl1, dl2}) == 1
         dl2 = DocumentLine(2, test_line)
-        assert not dl1 == dl2
-        assert not hash(dl1) == hash(dl2)
+        assert dl1 != dl2
+        assert hash(dl1) != hash(dl2)
         assert len({dl1, dl2}) == 2
 
-    def test_string_function_passthru(self):
+    def test_string_method_passthru(self):
+        """Test string method passthrough"""
         test_line = ' ip route 203.0.113.0 255.255.255.0 192.0.2.233'
         dl = DocumentLine(1, test_line)
         assert dl.startswith(test_line[:4])
@@ -187,6 +195,7 @@ class TestDocumentLine(unittest.TestCase):
         assert '203.0.113.0' in dl
 
     def test_gen(self):
+        """Test computation of the 'gen', 'parent', 'children', and 'all_descendants' attributes"""
         lines = ['interface GigabitEthernet0/0/0',
                  ' description Gig0/0/0',
                  '  description-modifier foobar',
@@ -218,6 +227,7 @@ class TestDocumentLine(unittest.TestCase):
         assert dl_list[3].all_descendants == []
 
     def test_is_comment(self):
+        """Test 'is_comment" attribute"""
         test_line = '!ip route 203.0.113.0 255.255.255.0 192.0.2.233'
         assert DocumentLine(1, test_line).is_comment
         assert not DocumentLine(1, test_line[1:]).is_comment
@@ -226,6 +236,7 @@ class TestDocumentLine(unittest.TestCase):
         assert not DocumentLine(1, test_line[2:]).is_comment
 
     def test_family(self):
+        """Test family() function and returning familial lines"""
         lines = ['interface GigabitEthernet0/0/0',
                  ' description Gig0/0/0',
                  '  description-modifier foobar',
@@ -244,7 +255,8 @@ class TestDocumentLine(unittest.TestCase):
         assert dl_list[1].family(include_ancestors=False) == dl_list[1:3]
         assert dl_list[2].family(include_ancestors=False) == dl_list[2:3]
         assert dl_list[3].family(include_ancestors=False) == dl_list[3:4]
-        assert dl_list[0].family(include_all_descendants=False) == [dl_list[0], dl_list[1], dl_list[3]]
+        assert (dl_list[0].family(include_all_descendants=False) == \
+                [dl_list[0], dl_list[1], dl_list[3]])
         assert dl_list[1].family(include_all_descendants=False) == dl_list[0:3]
         assert dl_list[2].family(include_all_descendants=False) == dl_list[0:3]
         assert dl_list[3].family(include_all_descendants=False) == [dl_list[0], dl_list[3]]
@@ -254,12 +266,14 @@ class TestDocumentLine(unittest.TestCase):
         assert dl_list[3].family(include_children=False) == [dl_list[0], dl_list[3]]
 
     def test_ipv6_has_ip_valueerror(self):
+        """Test invalid argument supplied to has_ip()"""
         ip_route = 'ipv6 route 2001:db8:690:f00b::/64 Tunnel6 2001:db8:690::1'
         dl = DocumentLine(1, ip_route)
         with self.assertRaises(ValueError):
             dl.has_ip(1)
 
     def test_repr(self):
+        """Test repr string"""
         lines = ['interface GigabitEthernet0/0/0',
                  ' description Gig0/0/0',
                  '  description-modifier foobar',
@@ -293,6 +307,7 @@ class TestDocumentLine(unittest.TestCase):
         assert lines[3] in r
 
     def test_immutability(self):
+        """Test immutability of line, line_num, ip_addrs, and ip_nets"""
         lines = ['interface GigabitEthernet0/0/0',
                  ' description Gig0/0/0',
                  '  description-modifier foobar',
@@ -308,6 +323,7 @@ class TestDocumentLine(unittest.TestCase):
             dl_list[0].ip_nets = {}
 
     def test_re_methods(self):
+        """Test re_search, re_match, re_fullmatch"""
         line = 'router pythonprotocol GRAIL'
         dl = DocumentLine(1, line)
         r_valid = re.compile('grail', re.IGNORECASE)
