@@ -23,4 +23,4 @@ jobs:
         python -m unittest
     - name: Analyzing the code with pylint
       run: |
-        pylint --fail-under=9.5 $(git ls-files 'tests/*.py' 'networkconfigparser/*.py')
+        pylint --fail-under=9.5 $(git ls-files 'test/*.py' 'networkconfigparser/*.py')
