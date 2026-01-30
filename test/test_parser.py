@@ -1,5 +1,6 @@
 """Test parser functions"""
 import io
+import os
 import logging
 from unittest import TestCase
 from networkconfigparser.parser import num_leading_spaces, parse_autodetect, parse_from_file
@@ -152,5 +153,7 @@ route-policy DEFAULT-ONLY
 
     def test_parse_from_file(self):
         """Test parsing from a file"""
-        p = parse_from_file('example-junos.txt')
+        filename = 'example-junos.txt'
+        test_dir = os.path.dirname(os.path.realpath(__file__))
+        p = parse_from_file(f'{test_dir}/{filename}')
         assert 'groups' in p[0].line
